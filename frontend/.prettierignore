@@ -1,0 +1,7 @@
+# Зависимости, сборка и файлы, создаваемые инструментами.
+node_modules/
+.next/
+out/
+build/
+package-lock.json
+next-env.d.ts

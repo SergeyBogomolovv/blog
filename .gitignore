@@ -1,0 +1,13 @@
+# Локальные секреты, зависимости и результаты сборки.
+.env
+.env.*
+node_modules/
+.next/
+*.tsbuildinfo
+.DS_Store
+backend/bin/
+frontend/out/
+frontend/build/
+frontend/next-env.d.ts
+npm-debug.log*
+*.pem
