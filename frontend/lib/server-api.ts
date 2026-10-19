@@ -12,6 +12,7 @@ const appOrigin = process.env.APP_ORIGIN || "http://localhost:3000";
 
 // ApiError отделяет ожидаемый отказ API от ошибки рендера приложения.
 export class ApiError extends Error {
+  // Сохраняет сообщение для пользователя и HTTP-статус ответа API.
   constructor(
     message: string,
     public status: number,

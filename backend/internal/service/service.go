@@ -55,6 +55,11 @@ func New(repo Repository, vault *security.Vault) (*Service, error) {
 	return &Service{repo, vault, hash}, err
 }
 
+// normalizeText приводит переносы строк из браузерных форм к единому формату.
+func normalizeText(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+}
+
 // validText проверяет длину непустого текста и отсутствие управляющих символов.
 func validText(s string, min, max int) bool {
 	n := utf8.RuneCountInString(s)
@@ -238,6 +243,7 @@ func (s *Service) User(ctx context.Context, id int64) (*model.User, error) {
 
 // UpdateProfile проверяет и шифрует редактируемые поля профиля.
 func (s *Service) UpdateProfile(ctx context.Context, id int64, name, bio string) error {
+	bio = normalizeText(bio)
 	if !validText(name, 2, 60) || !validText(bio, 1, 500) {
 		return ErrInvalid
 	}
@@ -286,7 +292,7 @@ func (s *Service) Post(ctx context.Context, id int64) (*model.Post, error) {
 // CreatePost проверяет ограничения заголовка и текста публикации.
 func (s *Service) CreatePost(ctx context.Context, author int64, title, body string) (int64, error) {
 	title = strings.TrimSpace(title)
-	body = strings.TrimSpace(body)
+	body = strings.TrimSpace(normalizeText(body))
 	if !validText(title, 3, 120) || !validText(body, 1, 10000) {
 		return 0, ErrInvalid
 	}
@@ -331,7 +337,7 @@ func (s *Service) Comments(ctx context.Context, id int64) ([]model.Comment, erro
 
 // Comment проверяет текст и существование публикации до добавления комментария.
 func (s *Service) Comment(ctx context.Context, post, author int64, body string) error {
-	body = strings.TrimSpace(body)
+	body = strings.TrimSpace(normalizeText(body))
 	if !validText(body, 1, 2000) {
 		return ErrInvalid
 	}
