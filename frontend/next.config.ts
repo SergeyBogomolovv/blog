@@ -1,10 +1,17 @@
 // Настройки сборки Tailwind и политик безопасности браузера.
 import type { NextConfig } from "next";
-import { loadEnvConfig } from "@next/env";
+import { loadEnvConfig, updateInitialEnv } from "@next/env";
 import path from "node:path";
 
-// Серверные настройки читаются из общего .env и не экспортируются клиенту.
-loadEnvConfig(path.resolve(process.cwd(), ".."));
+// Next.js уже загрузил frontend/.env: принудительно читаем общий корневой .env.
+// Обновляем исходное окружение, чтобы resetEnv в dev-воркерах сохранял настройки.
+const { parsedEnv } = loadEnvConfig(
+  path.resolve(process.cwd(), ".."),
+  process.env.NODE_ENV === "development",
+  undefined,
+  true,
+);
+updateInitialEnv(parsedEnv || {});
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
