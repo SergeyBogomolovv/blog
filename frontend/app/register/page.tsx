@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { AuthForm } from "@/components/auth-form";
 import { AuthLayout } from "@/components/auth-layout";
+import { ServiceUnavailable } from "@/components/service-unavailable";
 import { getSession } from "@/lib/server-api";
 
 export const metadata: Metadata = { title: "Регистрация" };
@@ -19,7 +20,11 @@ export default async function Register({ searchParams }: RegisterPageProps) {
   const service =
     typeof parameters.service === "string" ? parameters.service : "";
   const serviceQuery = service ? `?service=${encodeURIComponent(service)}` : "";
-  const user = await getSession();
+  const { user, unavailable } = await getSession();
+
+  if (unavailable) {
+    return <ServiceUnavailable />;
+  }
 
   if (user) {
     redirect(`/dashboard${serviceQuery}`);
