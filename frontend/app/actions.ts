@@ -6,6 +6,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import type { FormState } from "@/lib/form-state";
+import {
+  createCSRFToken,
+  csrfCookieName,
+  csrfCookieOptions,
+  sameCSRFToken,
+  validCSRFToken,
+} from "@/lib/csrf";
 import { ApiError, getSession, mutateAPI } from "@/lib/server-api";
 
 // text получает только строковое значение и не принимает файлы вместо полей.
@@ -13,6 +20,24 @@ function text(data: FormData, name: string): string {
   const value = data.get(name);
 
   return typeof value === "string" ? value : "";
+}
+
+// requireCSRF проверяет именно поле формы до обращения к Go и изменения cookie.
+async function requireCSRF(data: FormData): Promise<string> {
+  const jar = await cookies();
+  const token = text(data, "csrf_token");
+
+  if (
+    !sameCSRFToken(token, jar.get(csrfCookieName)?.value || "") ||
+    !validCSRFToken(token, jar.get("access_token")?.value || "")
+  ) {
+    throw new ApiError(
+      "Не удалось проверить защиту формы. Обновите страницу и попробуйте ещё раз.",
+      403,
+    );
+  }
+
+  return token;
 }
 
 // failure сохраняет несекретные поля для повторного ввода и показывает безопасную ошибку.
@@ -60,7 +85,8 @@ export async function loginAction(
   const login = text(data, "login");
 
   try {
-    await mutateAPI("/auth/login", "POST", {
+    const csrfToken = await requireCSRF(data);
+    await mutateAPI(csrfToken, "/auth/login", "POST", {
       login,
       password: text(data, "password"),
     });
@@ -88,7 +114,8 @@ export async function registerAction(
   }
 
   try {
-    await mutateAPI("/auth/register", "POST", {
+    const csrfToken = await requireCSRF(data);
+    await mutateAPI(csrfToken, "/auth/register", "POST", {
       ...values,
       password: text(data, "password"),
       consent: true,
@@ -102,9 +129,13 @@ export async function registerAction(
 }
 
 // logoutAction отзывает токены в Go и удаляет cookie даже при уже истёкшей сессии.
-export async function logoutAction(): Promise<FormState> {
+export async function logoutAction(
+  _state: FormState,
+  data: FormData,
+): Promise<FormState> {
   try {
-    await mutateAPI("/auth/logout", "POST", {});
+    const csrfToken = await requireCSRF(data);
+    await mutateAPI(csrfToken, "/auth/logout", "POST", {});
   } catch (error) {
     if (!(error instanceof ApiError && error.status === 401)) {
       return failure(error);
@@ -112,6 +143,7 @@ export async function logoutAction(): Promise<FormState> {
   }
 
   (await cookies()).delete("access_token");
+  (await cookies()).set(csrfCookieName, createCSRFToken(), csrfCookieOptions);
   revalidatePath("/", "layout");
   redirect("/");
 }
@@ -125,8 +157,10 @@ export async function createPostAction(
   let id: number;
 
   try {
+    const csrfToken = await requireCSRF(data);
     await requireUser();
-    id = (await mutateAPI<{ id: number }>("/posts", "POST", values)).id;
+    id = (await mutateAPI<{ id: number }>(csrfToken, "/posts", "POST", values))
+      .id;
   } catch (error) {
     return failure(error, values);
   }
@@ -144,9 +178,10 @@ export async function commentAction(
   let id: string;
 
   try {
+    const csrfToken = await requireCSRF(data);
     await requireUser();
     id = identifier(data, "post_id");
-    await mutateAPI(`/posts/${id}/comments`, "POST", { body });
+    await mutateAPI(csrfToken, `/posts/${id}/comments`, "POST", { body });
   } catch (error) {
     return failure(error, { body });
   }
@@ -165,8 +200,9 @@ export async function profileAction(
   const values = { name: text(data, "name"), bio: text(data, "bio") };
 
   try {
+    const csrfToken = await requireCSRF(data);
     await requireUser();
-    await mutateAPI("/profile", "PATCH", values);
+    await mutateAPI(csrfToken, "/profile", "PATCH", values);
   } catch (error) {
     return failure(error, values);
   }
@@ -182,6 +218,7 @@ export async function deletePostAction(
   data: FormData,
 ): Promise<FormState> {
   try {
+    const csrfToken = await requireCSRF(data);
     await requireUser();
 
     if (data.get("confirm") !== "on") {
@@ -189,7 +226,7 @@ export async function deletePostAction(
     }
 
     const id = identifier(data, "post_id");
-    await mutateAPI(`/posts/${id}`, "DELETE");
+    await mutateAPI(csrfToken, `/posts/${id}`, "DELETE");
   } catch (error) {
     return failure(error);
   }
@@ -204,6 +241,7 @@ export async function banAction(
   data: FormData,
 ): Promise<FormState> {
   try {
+    const csrfToken = await requireCSRF(data);
     await requireUser(true);
     const id = identifier(data, "user_id");
     const banned = text(data, "banned");
@@ -212,7 +250,7 @@ export async function banAction(
       throw new ApiError("Подтвердите действие", 400);
     }
 
-    await mutateAPI(`/admin/users/${id}/ban`, "PATCH", {
+    await mutateAPI(csrfToken, `/admin/users/${id}/ban`, "PATCH", {
       banned: banned === "true",
     });
   } catch (error) {
@@ -229,6 +267,12 @@ export async function acceptCookiesAction(
   _state: FormState,
   data: FormData,
 ): Promise<FormState> {
+  try {
+    await requireCSRF(data);
+  } catch (error) {
+    return failure(error);
+  }
+
   (await cookies()).set("cookie_notice", "accepted", {
     httpOnly: true,
     sameSite: "strict",

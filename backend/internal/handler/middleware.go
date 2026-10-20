@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"crypto/hmac"
 	"errors"
 	"log/slog"
 	"net"
@@ -15,7 +16,7 @@ import (
 	"studyblog/pkg/security"
 )
 
-// security задаёт политики и проверяет Origin и специальный заголовок против CSRF.
+// security проверяет Origin, специальный заголовок и подписанный CSRF-токен.
 func (h *Handler) security(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -25,6 +26,17 @@ func (h *Handler) security(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 		if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" {
 			if r.Header.Get("Origin") != h.config.Origin || r.Header.Get("X-Requested-With") != "studyblog" {
+				h.fail(w, service.ErrForbidden)
+				return
+			}
+			csrf, err := r.Cookie("csrf_token")
+			session := ""
+			if cookie, err := r.Cookie("access_token"); err == nil {
+				session = cookie.Value
+			}
+			provided := r.Header.Get("X-CSRF-Token")
+			if err != nil || !hmac.Equal([]byte(csrf.Value), []byte(provided)) ||
+				!security.ValidCSRF(h.config.JWTKey, provided, session) {
 				h.fail(w, service.ErrForbidden)
 				return
 			}
@@ -64,6 +76,12 @@ func (h *Handler) cookie(w http.ResponseWriter, value string, remove bool) {
 // session на каждом запросе проверяет подпись, срок, блокировку и версию сессии.
 func (h *Handler) session(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Вход и регистрация доступны с истёкшей cookie; CSRF уже проверен выше.
+		if r.Method == http.MethodPost && (r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/register") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		cookie, err := r.Cookie("access_token")
 		if errors.Is(err, http.ErrNoCookie) {
 			next.ServeHTTP(w, r)

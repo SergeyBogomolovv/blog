@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { loginAction, registerAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { CSRFField } from "@/components/csrf";
 
 // AuthForm отображает состояние действия и сохраняет несекретные поля при ошибке.
 export function AuthForm({ register = false }: { register?: boolean }) {
@@ -39,6 +40,7 @@ export function AuthForm({ register = false }: { register?: boolean }) {
           action={formAction}
           autoComplete="off"
         >
+          <CSRFField />
           {register && (
             <>
               <label htmlFor="name">Как к вам обращаться</label>

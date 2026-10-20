@@ -6,6 +6,7 @@ import { useActionState } from "react";
 
 import { acceptCookiesAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { CSRFField } from "@/components/csrf";
 
 // openDialog открывает модальное окно после присоединения DOM-элемента.
 function openDialog(node: HTMLDialogElement | null) {
@@ -16,7 +17,7 @@ function openDialog(node: HTMLDialogElement | null) {
 
 // CookieNotice отправляет ознакомление серверным действием без localStorage и эффектов.
 export function CookieNotice() {
-  const [, action, pending] = useActionState(
+  const [state, action, pending] = useActionState(
     acceptCookiesAction,
     {},
     usePathname(),
@@ -33,12 +34,22 @@ export function CookieNotice() {
       <h2 id="cookie-title">Здесь есть cookie</h2>
       <p>
         Мы используем только необходимые cookie, чтобы сохранять ваш вход и
-        отметку об ознакомлении. Рекламных и аналитических cookie нет.
+        отметку об ознакомлении, а также защищать формы от поддельных запросов.
+        Рекламных и аналитических cookie нет.
       </p>
       <form
         action={action}
         autoComplete="off"
       >
+        <CSRFField />
+        {state.error && (
+          <p
+            className="error-box"
+            role="alert"
+          >
+            {state.error}
+          </p>
+        )}
         <button
           type="submit"
           name="destination"

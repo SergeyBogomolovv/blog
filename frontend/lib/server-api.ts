@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import type { User } from "@/lib/api";
+import { createCSRFToken, csrfCookieName, csrfCookieOptions } from "@/lib/csrf";
 
 const backendURL = process.env.BACKEND_URL || "http://127.0.0.1:8080";
 const appOrigin = process.env.APP_ORIGIN || "http://localhost:3000";
@@ -21,16 +22,23 @@ export class ApiError extends Error {
   }
 }
 
-// backendRequest пересылает только cookie авторизации, ограничивая время ожидания API.
+// backendRequest пересылает только cookie авторизации и CSRF, ограничивая ожидание API.
 async function backendRequest(
   path: string,
   method: string,
   data?: unknown,
   authenticated = true,
+  csrfToken?: string,
 ) {
-  const token = authenticated
-    ? (await cookies()).get("access_token")?.value
-    : undefined;
+  const jar = await cookies();
+  const token = authenticated ? jar.get("access_token")?.value : undefined;
+  const csrfCookie = csrfToken ? jar.get(csrfCookieName)?.value : undefined;
+  const forwardedCookies = [
+    ...(token ? [`access_token=${encodeURIComponent(token)}`] : []),
+    ...(csrfCookie
+      ? [`${csrfCookieName}=${encodeURIComponent(csrfCookie)}`]
+      : []),
+  ];
 
   try {
     return await fetch(`${backendURL}/api${path}`, {
@@ -41,8 +49,9 @@ async function backendRequest(
         "Content-Type": "application/json",
         "X-Requested-With": "studyblog",
         Origin: appOrigin,
-        ...(token
-          ? { Cookie: `access_token=${encodeURIComponent(token)}` }
+        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        ...(forwardedCookies.length
+          ? { Cookie: forwardedCookies.join("; ") }
           : {}),
       },
       body: data === undefined ? undefined : JSON.stringify(data),
@@ -111,16 +120,12 @@ export const getSession = cache(
 
 // mutateAPI вызывается только из Server Actions и передаёт Set-Cookie в ответ браузеру.
 export async function mutateAPI<T>(
+  csrfToken: string,
   path: string,
   method: string,
   data?: unknown,
 ): Promise<T> {
-  const response = await backendRequest(
-    path,
-    method,
-    data,
-    path !== "/auth/login" && path !== "/auth/register",
-  );
+  const response = await backendRequest(path, method, data, true, csrfToken);
   const header = response.headers
     .getSetCookie()
     .find((value) => value.startsWith("access_token="));
@@ -140,6 +145,12 @@ export async function mutateAPI<T>(
       secure: attributes.some((value) => value.toLowerCase() === "secure"),
       maxAge,
     });
+    // После смены сессии прежний CSRF-токен больше не подходит.
+    (await cookies()).set(
+      csrfCookieName,
+      createCSRFToken(maxAge > 0 ? value : ""),
+      csrfCookieOptions,
+    );
   }
 
   return result<T>(response);

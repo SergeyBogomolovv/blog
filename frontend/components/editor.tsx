@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowUpRight } from "lucide-react";
 
 import { createPostAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { CSRFField } from "@/components/csrf";
 
 // Editor сохраняет введённый текст при ошибке и показывает состояние отправки.
 export function Editor() {
@@ -34,6 +35,7 @@ export function Editor() {
         action={formAction}
         autoComplete="off"
       >
+        <CSRFField />
         <label htmlFor="title">Заголовок</label>
         <input
           id="title"

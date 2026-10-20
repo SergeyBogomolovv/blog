@@ -6,6 +6,7 @@ import { useActionState } from "react";
 
 import { profileAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { CSRFField } from "@/components/csrf";
 
 // ProfileForm сохраняет поля при отказе сервера и показывает результат действия.
 export function ProfileForm({ name, bio }: { name: string; bio: string }) {
@@ -21,6 +22,7 @@ export function ProfileForm({ name, bio }: { name: string; bio: string }) {
       action={action}
       autoComplete="off"
     >
+      <CSRFField />
       <h2>Немного о вас</h2>
       <label htmlFor="profile-name">Имя</label>
       <input

@@ -5,6 +5,7 @@ import { useActionState } from "react";
 
 import { commentAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { CSRFField } from "@/components/csrf";
 
 // CommentForm сохраняет неотправленный текст при ошибке и очищает поле после публикации.
 export function CommentForm({ postID }: { postID: number }) {
@@ -20,6 +21,7 @@ export function CommentForm({ postID }: { postID: number }) {
       action={action}
       autoComplete="off"
     >
+      <CSRFField />
       <input
         type="hidden"
         name="post_id"
