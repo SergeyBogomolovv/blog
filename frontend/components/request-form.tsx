@@ -1,3 +1,4 @@
+// Форма оформления заявки на уборку.
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -7,27 +8,34 @@ import { ArrowUpRight, Check, Plus } from "lucide-react";
 import {
   api,
   ApiError,
+  /** Структура данных CleaningRequest. */
   type CleaningRequest,
+  /** Структура данных CleaningService. */
   type CleaningService,
   errorMessage,
+  /** Структура данных FieldErrors. */
   type FieldErrors,
   moscowToday,
 } from "@/lib/api";
 import { validateRequest } from "@/lib/validation";
 
+/** Параметры компонента RequestFormProps. */
 interface RequestFormProps {
   services: CleaningService[];
   selectedService: string;
   onCreated: (request: CleaningRequest) => void;
 }
 
+/** Собирает услугу, адрес и дату уборки с проверкой полей. */
 export function RequestForm({
   services,
   selectedService,
   onCreated,
 }: RequestFormProps) {
   const router = useRouter();
-  const initialService = services.some((service) => service.id === selectedService)
+  const initialService = services.some(
+    (service) => service.id === selectedService,
+  )
     ? selectedService
     : "";
 
@@ -39,6 +47,7 @@ export function RequestForm({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  /** Проверяет поля и отправляет заявку. */
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -59,7 +68,10 @@ export function RequestForm({
     setPending(true);
 
     try {
-      const response = await api<{ request: CleaningRequest }>("/requests", input);
+      const response = await api<{ request: CleaningRequest }>(
+        "/requests",
+        input,
+      );
       onCreated(response.request);
       setAddress("");
       setCleaningDate("");
@@ -83,8 +95,13 @@ export function RequestForm({
   }
 
   return (
-    <section className="booking-panel" aria-labelledby="booking-title">
-      <span className="panel-icon"><Plus size={22} /></span>
+    <section
+      className="booking-panel"
+      aria-labelledby="booking-title"
+    >
+      <span className="panel-icon">
+        <Plus size={22} />
+      </span>
       <h2 id="booking-title">Запланировать уборку</h2>
       <p>Выберите услугу и расскажите, где нас ждут.</p>
       <form
@@ -93,9 +110,19 @@ export function RequestForm({
         onSubmit={submit}
         autoComplete="off"
       >
-        {error && <div className="error-box" role="alert">{error}</div>}
+        {error && (
+          <div
+            className="error-box"
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
         {success && (
-          <div className="success-box" role="status">
+          <div
+            className="success-box"
+            role="status"
+          >
             <Check size={18} /> Заявка сохранена и появилась в вашем списке.
           </div>
         )}
@@ -111,12 +138,27 @@ export function RequestForm({
             aria-invalid={Boolean(errors.service)}
             aria-describedby="service-error"
           >
-            <option value="" disabled>Выберите подходящую услугу</option>
+            <option
+              value=""
+              disabled
+            >
+              Выберите подходящую услугу
+            </option>
             {services.map((service) => (
-              <option key={service.id} value={service.id}>{service.name}</option>
+              <option
+                key={service.id}
+                value={service.id}
+              >
+                {service.name}
+              </option>
             ))}
           </select>
-          <span className="field-error" id="service-error">{errors.service}</span>
+          <span
+            className="field-error"
+            id="service-error"
+          >
+            {errors.service}
+          </span>
         </div>
         <div className="field">
           <label htmlFor="address">Адрес уборки</label>
@@ -134,11 +176,19 @@ export function RequestForm({
             aria-invalid={Boolean(errors.address)}
             aria-describedby="address-hint address-error"
           />
-          <div className="field-hint field-counter" id="address-hint">
+          <div
+            className="field-hint field-counter"
+            id="address-hint"
+          >
             <span>Полный адрес, до 100 символов</span>
             <span>{Array.from(address).length}/100</span>
           </div>
-          <span className="field-error" id="address-error">{errors.address}</span>
+          <span
+            className="field-error"
+            id="address-error"
+          >
+            {errors.address}
+          </span>
         </div>
         <div className="field">
           <label htmlFor="cleaning-date">Дата уборки</label>
@@ -154,12 +204,24 @@ export function RequestForm({
             aria-invalid={Boolean(errors.date)}
             aria-describedby="date-hint date-error"
           />
-          <span className="field-hint" id="date-hint">
+          <span
+            className="field-hint"
+            id="date-hint"
+          >
             Сегодня или позже. Часовой пояс — Москва.
           </span>
-          <span className="field-error" id="date-error">{errors.date}</span>
+          <span
+            className="field-error"
+            id="date-error"
+          >
+            {errors.date}
+          </span>
         </div>
-        <button type="submit" className="button wide-button" disabled={pending}>
+        <button
+          type="submit"
+          className="button wide-button"
+          disabled={pending}
+        >
           {pending ? "Сохраняем заявку…" : "Отправить заявку"}
           <ArrowUpRight size={18} />
         </button>

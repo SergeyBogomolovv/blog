@@ -1,3 +1,4 @@
+// Страница регистрации с сохранением выбранной услуги.
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -7,13 +8,16 @@ import { getSession } from "@/lib/server-api";
 
 export const metadata: Metadata = { title: "Регистрация" };
 
+/** Параметры компонента RegisterPageProps. */
 interface RegisterPageProps {
   searchParams: Promise<{ service?: string }>;
 }
 
+/** Передаёт выбранную услугу в форму регистрации. */
 export default async function Register({ searchParams }: RegisterPageProps) {
   const parameters = await searchParams;
-  const service = typeof parameters.service === "string" ? parameters.service : "";
+  const service =
+    typeof parameters.service === "string" ? parameters.service : "";
   const serviceQuery = service ? `?service=${encodeURIComponent(service)}` : "";
   const user = await getSession();
 
@@ -23,7 +27,10 @@ export default async function Register({ searchParams }: RegisterPageProps) {
 
   return (
     <AuthLayout register>
-      <AuthForm mode="register" service={service} />
+      <AuthForm
+        mode="register"
+        service={service}
+      />
     </AuthLayout>
   );
 }

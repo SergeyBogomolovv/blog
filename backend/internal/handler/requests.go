@@ -1,3 +1,4 @@
+// Создание и чтение заявок текущего пользователя.
 package handler
 
 import (
@@ -6,6 +7,7 @@ import (
 	"cleanhome/internal/service"
 )
 
+// requests возвращает заявки только авторизованного пользователя.
 func (h *Handler) requests(w http.ResponseWriter, r *http.Request) {
 	user := h.require(w, r)
 	if user == nil {
@@ -21,6 +23,7 @@ func (h *Handler) requests(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, map[string]any{"requests": requests})
 }
 
+// createRequest сохраняет заявку с владельцем из проверенной сессии.
 func (h *Handler) createRequest(w http.ResponseWriter, r *http.Request) {
 	user := h.require(w, r)
 	if user == nil {

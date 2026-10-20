@@ -11,14 +11,15 @@ import (
 )
 
 const (
-	passwordSaltSize = 16
-	passwordKeySize  = 32
+	passwordSaltSize  = 16
+	passwordKeySize   = 32
 	scryptCost        = 32768
 	scryptBlockSize   = 8
 	scryptParallelism = 1
 	passwordHashType  = "scrypt$32768$8$1"
 )
 
+// HashPassword создаёт хеш scrypt с новой случайной солью.
 func HashPassword(password string) (string, error) {
 	salt := make([]byte, passwordSaltSize)
 	if _, err := rand.Read(salt); err != nil {
@@ -37,6 +38,7 @@ func HashPassword(password string) (string, error) {
 	}, "$"), nil
 }
 
+// CheckPassword сравнивает пароль с сохранённым хешем за постоянное время.
 func CheckPassword(hash, password string) bool {
 	parts := strings.Split(hash, "$")
 	if len(parts) != 6 || strings.Join(parts[:4], "$") != passwordHashType {
@@ -61,6 +63,7 @@ func CheckPassword(hash, password string) bool {
 	return subtle.ConstantTimeCompare(actual, expected) == 1
 }
 
+// derivePasswordKey вычисляет производный ключ scrypt для пароля и соли.
 func derivePasswordKey(password string, salt []byte) ([]byte, error) {
 	return scrypt.Key(
 		[]byte(password),

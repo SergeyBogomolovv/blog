@@ -21,6 +21,7 @@ import (
 const apiContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
 	"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 
+// security добавляет защитные заголовки и проверяет изменяющие запросы.
 func (h *Handler) security(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -53,6 +54,7 @@ func (h *Handler) security(next http.Handler) http.Handler {
 	})
 }
 
+// isReadOnlyMethod определяет методы, не изменяющие данные.
 func isReadOnlyMethod(method string) bool {
 	switch method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -62,6 +64,7 @@ func isReadOnlyMethod(method string) bool {
 	}
 }
 
+// limitBody ограничивает размер тела запроса до обработки JSON.
 func (h *Handler) limitBody(w http.ResponseWriter, r *http.Request) bool {
 	// Ограничение размера действует и для выхода, и для подтверждения cookie.
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
@@ -83,6 +86,7 @@ func (h *Handler) limitBody(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// validCSRFRequest проверяет Origin, служебный заголовок и подпись CSRF.
 func (h *Handler) validCSRFRequest(r *http.Request) bool {
 	if r.Header.Get("Origin") != h.config.Origin {
 		return false
@@ -104,6 +108,7 @@ func (h *Handler) validCSRFRequest(r *http.Request) bool {
 	return security.ValidCSRF(h.config.SessionKey, token, sessionValue(r))
 }
 
+// setCookie устанавливает срок действия и защитные параметры cookie.
 func setCookie(w http.ResponseWriter, name, value string, maxAge int) {
 	expires := time.Now().Add(time.Duration(maxAge) * time.Second)
 	if maxAge < 0 {
@@ -121,6 +126,7 @@ func setCookie(w http.ResponseWriter, name, value string, maxAge int) {
 	})
 }
 
+// sessionValue читает токен сессии из cookie запроса.
 func sessionValue(r *http.Request) string {
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
@@ -130,6 +136,7 @@ func sessionValue(r *http.Request) string {
 	return cookie.Value
 }
 
+// session проверяет подпись, срок и наличие сессии для текущего запроса.
 func (h *Handler) session(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := sessionValue(r)
@@ -161,6 +168,7 @@ func (h *Handler) session(next http.Handler) http.Handler {
 	})
 }
 
+// require запрещает защищённую операцию без авторизованного пользователя.
 func (h *Handler) require(w http.ResponseWriter, r *http.Request) *model.User {
 	user, _ := r.Context().Value(contextKey{}).(*model.User)
 	if user == nil {

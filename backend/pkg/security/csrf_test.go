@@ -1,3 +1,4 @@
+// Проверки подписи и привязки CSRF-токенов к сессии.
 package security
 
 import (
@@ -10,6 +11,7 @@ import (
 const csrfVector = "0000000000000000000000000000000000000000000000000000000000000000." +
 	"f50f082c6345034a207b0b7e945bf896843f962412bd6149a6dfcb5fdceaddc8"
 
+// TestValidCSRF проверяет совместимость подписи и отказ для неверных CSRF-токенов.
 func TestValidCSRF(t *testing.T) {
 	t.Parallel()
 	key := bytes.Repeat([]byte{1}, 32)

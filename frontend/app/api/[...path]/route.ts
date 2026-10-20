@@ -18,12 +18,15 @@ const allowedRoutes = new Set([
   "requests",
 ]);
 
+/** Структура данных RouteContext. */
 interface RouteContext {
   params: Promise<{ path: string[] }>;
 }
 
+/** Сигнал превышения допустимого размера тела запроса. */
 class BodyTooLargeError extends Error {}
 
+/** Читает тело запроса с ограничением размера 16 КБ. */
 async function readLimitedBody(request: NextRequest): Promise<ArrayBuffer> {
   const reader = request.body?.getReader();
 
@@ -66,6 +69,7 @@ async function readLimitedBody(request: NextRequest): Promise<ArrayBuffer> {
   return body.buffer;
 }
 
+/** Передаёт API только необходимые заголовки запроса. */
 function forwardedHeaders(request: NextRequest): Headers {
   const headers = new Headers({ "Content-Type": "application/json" });
 
@@ -86,6 +90,7 @@ function forwardedHeaders(request: NextRequest): Headers {
   return headers;
 }
 
+/** Переносит cookie и защитные параметры ответа API. */
 function responseHeaders(response: Response): Headers {
   const headers = new Headers({
     "Content-Type": "application/json; charset=utf-8",
@@ -107,6 +112,7 @@ function responseHeaders(response: Response): Headers {
   return headers;
 }
 
+/** Формирует безопасный JSON-ответ об ошибке проксирования. */
 function errorResponse(message: string, status: number): Response {
   return Response.json(
     { error: message },
@@ -114,6 +120,7 @@ function errorResponse(message: string, status: number): Response {
   );
 }
 
+/** Проверяет маршрут и передаёт запрос локальному API. */
 async function forward(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
   const route = path.join("/");
@@ -123,9 +130,8 @@ async function forward(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const body = request.method === "POST"
-      ? await readLimitedBody(request)
-      : undefined;
+    const body =
+      request.method === "POST" ? await readLimitedBody(request) : undefined;
 
     const response = await fetch(
       `${backendURL}/api/${route}${request.nextUrl.search}`,

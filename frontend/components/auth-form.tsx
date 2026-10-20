@@ -1,3 +1,4 @@
+// Регистрация и вход с проверкой полей до отправки.
 "use client";
 
 import Link from "next/link";
@@ -15,18 +16,23 @@ import {
   api,
   ApiError,
   errorMessage,
+  /** Структура данных FieldErrors. */
   type FieldErrors,
+  /** Структура данных RegistrationValues. */
   type RegistrationValues,
 } from "@/lib/api";
-import { validateRegistration } from "@/lib/validation";
+import { validateLogin, validateRegistration } from "@/lib/validation";
 
+/** Параметры компонента AuthFormProps. */
 interface AuthFormProps {
   mode: "login" | "register";
   registered?: boolean;
   service?: string;
 }
 
+/** Читает поля формы, сохраняя пароль без изменения пробелов. */
 function registrationInput(data: FormData): RegistrationValues {
+  /** Получает строковое поле и удаляет пробелы по краям. */
   function text(name: string): string {
     return String(data.get(name) || "").trim();
   }
@@ -43,7 +49,11 @@ function registrationInput(data: FormData): RegistrationValues {
   };
 }
 
-function destinationAfterSubmit(mode: AuthFormProps["mode"], service: string): string {
+/** Формирует адрес перехода с выбранной услугой. */
+function destinationAfterSubmit(
+  mode: AuthFormProps["mode"],
+  service: string,
+): string {
   const parameters = new URLSearchParams();
   const pathname = mode === "register" ? "/login" : "/dashboard";
 
@@ -60,7 +70,12 @@ function destinationAfterSubmit(mode: AuthFormProps["mode"], service: string): s
   return query ? `${pathname}?${query}` : pathname;
 }
 
-export function AuthForm({ mode, registered = false, service = "" }: AuthFormProps) {
+/** Проверяет и отправляет данные регистрации либо входа. */
+export function AuthForm({
+  mode,
+  registered = false,
+  service = "",
+}: AuthFormProps) {
   const router = useRouter();
   const [errors, setErrors] = useState<FieldErrors>({});
   const [error, setError] = useState("");
@@ -72,13 +87,16 @@ export function AuthForm({ mode, registered = false, service = "" }: AuthFormPro
   const switchPath = isRegistration ? "/login" : "/register";
   const serviceQuery = service ? `?service=${encodeURIComponent(service)}` : "";
 
+  /** Проверяет поля и отправляет данные авторизации. */
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
     const form = event.currentTarget;
     const input = registrationInput(new FormData(form));
-    const validationErrors = isRegistration ? validateRegistration(input) : {};
+    const validationErrors = isRegistration
+      ? validateRegistration(input)
+      : validateLogin(input);
     const invalidFields = Object.keys(validationErrors);
     setErrors(validationErrors);
 
@@ -119,11 +137,21 @@ export function AuthForm({ mode, registered = false, service = "" }: AuthFormPro
       autoComplete="off"
     >
       {registered && (
-        <div className="success-box" role="status">
+        <div
+          className="success-box"
+          role="status"
+        >
           Аккаунт создан. Войдите со своим логином и паролем.
         </div>
       )}
-      {error && <div className="error-box" role="alert">{error}</div>}
+      {error && (
+        <div
+          className="error-box"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
       <div className={isRegistration ? "form-grid" : "form-stack"}>
         {fields.map((field) => (
           <AuthTextField
@@ -147,21 +175,34 @@ export function AuthForm({ mode, registered = false, service = "" }: AuthFormPro
               name="consent"
               required
               disabled={pending}
-              aria-describedby="consent-error"
+              aria-describedby={errors.consent ? "consent-error" : undefined}
             />
             <span>
               Я даю{" "}
-              <Link href="/privacy" target="_blank" rel="noopener">
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener"
+              >
                 согласие на обработку персональных данных
               </Link>
             </span>
           </label>
           {errors.consent && (
-            <p className="field-error" id="consent-error">{errors.consent}</p>
+            <p
+              className="field-error"
+              id="consent-error"
+            >
+              {errors.consent}
+            </p>
           )}
         </div>
       )}
-      <button type="submit" className="button wide-button" disabled={pending}>
+      <button
+        type="submit"
+        className="button wide-button"
+        disabled={pending}
+      >
         {pending ? "Подождите…" : submitLabel}
         <ArrowUpRight size={18} />
       </button>

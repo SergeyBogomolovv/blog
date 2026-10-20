@@ -1,3 +1,4 @@
+// Настройки сборки Next.js, окружения и защитных заголовков.
 import path from "node:path";
 import { loadEnvConfig, updateInitialEnv } from "@next/env";
 import type { NextConfig } from "next";
@@ -32,6 +33,7 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  /** Назначает общие защитные заголовки всем маршрутам сайта. */
   async headers() {
     return [
       {

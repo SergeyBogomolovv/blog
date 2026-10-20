@@ -1,6 +1,8 @@
+// Страница для отсутствующих адресов сайта.
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 
+/** Показывает сообщение об отсутствующей странице и ссылку на главную. */
 export default function NotFound() {
   return (
     <div className="container error-page">

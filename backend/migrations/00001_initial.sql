@@ -4,26 +4,22 @@
 
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
-    surname TEXT NOT NULL
-        CHECK (char_length(surname) BETWEEN 1 AND 20),
-    name TEXT NOT NULL
-        CHECK (char_length(name) BETWEEN 1 AND 20),
-    patronymic TEXT NOT NULL
-        CHECK (char_length(patronymic) BETWEEN 1 AND 20),
-    login TEXT NOT NULL
-        CHECK (char_length(login) BETWEEN 1 AND 20),
+    -- Поля содержат только шифротекст AES-256-GCM; длина ввода проверяется до шифрования.
+    surname TEXT NOT NULL CHECK (surname LIKE 'v1:%'),
+    name TEXT NOT NULL CHECK (name LIKE 'v1:%'),
+    patronymic TEXT NOT NULL CHECK (patronymic LIKE 'v1:%'),
+    login TEXT NOT NULL CHECK (login LIKE 'v1:%'),
+    login_index TEXT NOT NULL CHECK (login_index ~ '^[0-9a-f]{64}$'),
     password_hash TEXT NOT NULL,
-    phone TEXT NOT NULL
-        CHECK (char_length(phone) BETWEEN 1 AND 20),
-    email TEXT NOT NULL
-        CHECK (char_length(email) BETWEEN 1 AND 20),
+    phone TEXT NOT NULL CHECK (phone LIKE 'v1:%'),
+    email TEXT NOT NULL CHECK (email LIKE 'v1:%'),
     consent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     consent_version TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX users_login_idx
-    ON users (lower(login));
+    ON users (login_index);
 
 CREATE TABLE requests (
     id BIGSERIAL PRIMARY KEY,
@@ -37,8 +33,7 @@ CREATE TABLE requests (
                 'renovation'
             )
         ),
-    address TEXT NOT NULL
-        CHECK (char_length(address) BETWEEN 1 AND 100),
+    address TEXT NOT NULL CHECK (address LIKE 'v1:%'),
     cleaning_date DATE NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

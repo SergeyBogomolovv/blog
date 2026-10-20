@@ -1,9 +1,11 @@
+// Согласие на обработку персональных данных и описание cookie.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { consentVersion } from "@/lib/validation";
 export const metadata: Metadata = { title: "Согласие на обработку данных" };
 
+/** Показывает условия обработки данных и необходимые cookie. */
 export default function Privacy() {
   return (
     <article className="container privacy-page">
@@ -33,9 +35,10 @@ export default function Privacy() {
       <h2>Какие данные обрабатываются</h2>
       <p>
         Фамилия, имя, отчество, логин, телефон и электронная почта, а также
-        адрес и дата уборки из заявок. Пароль хранится только в виде хеша scrypt
-        с индивидуальной случайной солью. При регистрации сохраняются дата и
-        версия согласия.
+        адрес и дата уборки из заявок. ФИО, логин, телефон, электронная почта и
+        адрес уборки хранятся в базе в зашифрованном виде. Пароль хранится
+        только в виде хеша scrypt с индивидуальной случайной солью. При
+        регистрации сохраняются дата и версия согласия.
       </p>
       <h2>Для чего нужны данные</h2>
       <p>

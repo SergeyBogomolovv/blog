@@ -11,13 +11,17 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config параметры подключения, адрес сайта и ключи защиты.
 type Config struct {
 	DSN        string
 	Address    string
 	Origin     string
 	SessionKey []byte
+	DataKey    []byte
+	IndexKey   []byte
 }
 
+// Load загружает и проверяет настройки выбранной роли приложения.
 func Load(admin bool) (Config, error) {
 	if err := loadEnvFile(); err != nil {
 		return Config{}, err
@@ -28,6 +32,14 @@ func Load(admin bool) (Config, error) {
 		return Config{}, errors.New(
 			"SESSION_SECRET должен содержать 32 байта в hex; выполните make secrets",
 		)
+	}
+	dataKey, err := readKey("DATA_ENCRYPTION_KEY")
+	if err != nil {
+		return Config{}, err
+	}
+	indexKey, err := readKey("LOGIN_INDEX_KEY")
+	if err != nil {
+		return Config{}, err
 	}
 
 	required := []string{
@@ -53,9 +65,21 @@ func Load(admin bool) (Config, error) {
 		Address:    os.Getenv("SERVER_ADDR"),
 		Origin:     os.Getenv("APP_ORIGIN"),
 		SessionKey: key,
+		DataKey:    dataKey,
+		IndexKey:   indexKey,
 	}, nil
 }
 
+// readKey читает 256-битный ключ, не включая его значение в сообщения об ошибках.
+func readKey(name string) ([]byte, error) {
+	key, err := hex.DecodeString(os.Getenv(name))
+	if err != nil || len(key) != 32 {
+		return nil, fmt.Errorf("%s должен содержать 32 байта в hex", name)
+	}
+	return key, nil
+}
+
+// loadEnvFile читает локальную конфигурацию, сохраняя приоритет окружения.
 func loadEnvFile() error {
 	for _, path := range []string{".env", "../.env"} {
 		if _, err := os.Stat(path); err != nil {
@@ -76,6 +100,7 @@ func loadEnvFile() error {
 	return nil
 }
 
+// databaseDSN собирает строку подключения с паролем из окружения.
 func databaseDSN(admin bool) (string, error) {
 	role := "user"
 	password := os.Getenv("DB_USER_PASSWORD")

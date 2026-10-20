@@ -24,16 +24,19 @@ const emailDomainPattern = new RegExp(`^${domainLabel}(\\.${domainLabel})+$`);
 const searchPattern = /^[А-Яа-яЁёA-Za-z0-9 -]+$/;
 const calendarDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Считает символы Unicode независимо от числа кодовых единиц. */
 function characterCount(value: string): number {
   return Array.from(value).length;
 }
 
+/** Проверяет длину строки и соответствие допустимому формату. */
 function validText(value: string, pattern: RegExp): boolean {
   const length = characterCount(value);
 
   return length >= 1 && length <= 20 && pattern.test(value);
 }
 
+/** Проверяет минимальную длину и обязательные символы пароля. */
 export function validPassword(password: string): boolean {
   return (
     characterCount(password) >= 8 &&
@@ -44,6 +47,7 @@ export function validPassword(password: string): boolean {
   );
 }
 
+/** Проверяет длину, домен и допустимые точки в адресе почты. */
 export function validEmail(email: string): boolean {
   if (characterCount(email) > 20) {
     return false;
@@ -64,10 +68,30 @@ export function validEmail(email: string): boolean {
   );
 }
 
+/** Проверяет длину и разрешённые символы поискового запроса. */
 export function validSearch(query: string): boolean {
   return validText(query, searchPattern);
 }
 
+/** Проверяет данные входа до передачи на сервер. */
+export function validateLogin(input: {
+  login: string;
+  password: string;
+}): FieldErrors {
+  const fields: FieldErrors = {};
+
+  if (!validText(input.login.trim(), textPatterns.login)) {
+    fields.login = "Логин: только латинские буквы, от 1 до 20 символов.";
+  }
+
+  if (!validPassword(input.password)) {
+    fields.password = "Логин или пароль некорректен";
+  }
+
+  return fields;
+}
+
+/** Возвращает ошибки регистрационных полей и согласия. */
 export function validateRegistration(input: RegistrationValues): FieldErrors {
   const fields: FieldErrors = {};
 
@@ -98,6 +122,7 @@ export function validateRegistration(input: RegistrationValues): FieldErrors {
   return fields;
 }
 
+/** Отклоняет несуществующие и прошедшие календарные даты. */
 function validCleaningDate(value: string, today: string): boolean {
   if (!calendarDatePattern.test(value)) {
     return false;
@@ -112,6 +137,7 @@ function validCleaningDate(value: string, today: string): boolean {
   return parsed.toISOString().slice(0, 10) === value && value >= today;
 }
 
+/** Проверяет услугу, адрес и дату перед отправкой заявки. */
 export function validateRequest(
   input: RequestValues,
   services: CleaningService[],

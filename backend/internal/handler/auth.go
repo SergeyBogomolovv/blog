@@ -1,3 +1,4 @@
+// Регистрация, вход и отзыв пользовательских сессий.
 package handler
 
 import (
@@ -8,11 +9,13 @@ import (
 	"cleanhome/pkg/security"
 )
 
+// loginInput логин и пароль из запроса аутентификации.
 type loginInput struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// register проверяет запрос и создаёт пользователя без автоматического входа.
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	if h.limited(w, r) {
 		return
@@ -31,6 +34,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusCreated, map[string]bool{"ok": true})
 }
 
+// login проверяет учётные данные и выдаёт новую сессию.
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if h.limited(w, r) {
 		return
@@ -69,6 +73,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, map[string]any{"user": user})
 }
 
+// me возвращает данные пользователя из проверенной сессии.
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	user := h.require(w, r)
 	if user == nil {
@@ -78,6 +83,7 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, map[string]any{"user": user})
 }
 
+// logout отзывает сессию и удаляет cookie авторизации и CSRF.
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	// Подтверждение выхода отправляется после удаления сессии из базы.
 	if err := h.revokeCurrentSession(r); err != nil {
@@ -90,6 +96,7 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// revokeCurrentSession удаляет действующий идентификатор сессии из БД.
 func (h *Handler) revokeCurrentSession(r *http.Request) error {
 	token := sessionValue(r)
 	if !security.ValidSession(h.config.SessionKey, token) {

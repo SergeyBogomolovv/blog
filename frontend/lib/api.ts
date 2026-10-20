@@ -11,12 +11,14 @@ export interface User {
   consent_version: string;
 }
 
+/** Структура данных CleaningService. */
 export interface CleaningService {
   id: string;
   name: string;
   description: string;
 }
 
+/** Структура данных CleaningRequest. */
 export interface CleaningRequest {
   id: number;
   service: string;
@@ -25,6 +27,7 @@ export interface CleaningRequest {
   created_at: string;
 }
 
+/** Структура данных RegistrationValues. */
 export interface RegistrationValues {
   surname: string;
   name: string;
@@ -36,23 +39,28 @@ export interface RegistrationValues {
   consent: boolean;
 }
 
+/** Структура данных RequestValues. */
 export interface RequestValues {
   service: string;
   address: string;
   date: string;
 }
 
+/** Структура данных FieldErrors. */
 export type FieldErrors = Record<string, string>;
 
+/** Структура данных ErrorBody. */
 interface ErrorBody {
   error?: string;
   fields?: FieldErrors;
 }
 
+/** Ошибка API с безопасным сообщением и ошибками полей. */
 export class ApiError extends Error {
   readonly status: number;
   readonly fields: FieldErrors;
 
+  /** Создаёт ошибку API с HTTP-статусом и ошибками полей. */
   constructor(message: string, status: number, fields: FieldErrors = {}) {
     super(message);
     this.name = "ApiError";
@@ -61,6 +69,7 @@ export class ApiError extends Error {
   }
 }
 
+/** Возвращает понятное сообщение для ошибки запроса. */
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -69,6 +78,7 @@ export function errorMessage(error: unknown): string {
   return "Не удалось выполнить запрос. Попробуйте ещё раз.";
 }
 
+/** Форматирует дату для отображения по московскому времени. */
 export function date(value: string): string {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -88,6 +98,7 @@ export function moscowToday(): string {
   }).format(new Date());
 }
 
+/** Получает подписанный CSRF-токен перед изменением данных. */
 async function csrfToken(): Promise<string> {
   const response = await fetch("/api/csrf", {
     cache: "no-store",
@@ -106,6 +117,7 @@ async function csrfToken(): Promise<string> {
   return body.token;
 }
 
+/** Отправляет запрос через общий адрес сайта и обрабатывает ошибки. */
 export async function api<T>(path: string, data?: unknown): Promise<T> {
   const isMutation = data !== undefined;
 

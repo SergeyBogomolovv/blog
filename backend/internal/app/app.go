@@ -13,8 +13,10 @@ import (
 	"cleanhome/internal/handler"
 	"cleanhome/internal/repository"
 	"cleanhome/internal/service"
+	"cleanhome/pkg/security"
 )
 
+// App ресурсы приложения и настроенный HTTP-сервер.
 type App struct {
 	DB      *sqlx.DB
 	Service *service.Service
@@ -38,13 +40,18 @@ func OpenDB(cfg config.Config) (*sqlx.DB, error) {
 	return db, nil
 }
 
+// New собирает шифрование, хранилище, бизнес-логику и HTTP-сервер.
 func New(cfg config.Config) (*App, error) {
+	dataCipher, err := security.NewDataCipher(cfg.DataKey, cfg.IndexKey)
+	if err != nil {
+		return nil, err
+	}
 	db, err := OpenDB(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	repo := repository.New(db)
+	repo := repository.New(db, dataCipher)
 	svc, err := service.New(repo)
 	if err != nil {
 		db.Close()

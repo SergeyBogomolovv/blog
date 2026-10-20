@@ -16,7 +16,7 @@ const (
 	maxAddressLength  = 100
 	minPasswordLength = 8
 	dateLayout        = "2006-01-02"
-	domainLabel = `[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?`
+	domainLabel       = `[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?`
 )
 
 var (
@@ -59,12 +59,15 @@ var cleaningServices = []model.CleaningService{
 	},
 }
 
+// Fields ошибки проверки, привязанные к именам полей.
 type Fields map[string]string
 
+// Error возвращает общее сообщение об ошибках полей.
 func (fields Fields) Error() string {
 	return "Проверьте заполнение полей."
 }
 
+// Registration входные данные регистрации и подтверждение согласия.
 type Registration struct {
 	Surname    string `json:"surname"`
 	Name       string `json:"name"`
@@ -76,6 +79,7 @@ type Registration struct {
 	Consent    bool   `json:"consent"`
 }
 
+// Validate нормализует ввод и возвращает ошибки отдельных полей.
 func (input *Registration) Validate() Fields {
 	input.Surname = strings.TrimSpace(input.Surname)
 	input.Name = strings.TrimSpace(input.Name)
@@ -113,11 +117,13 @@ func (input *Registration) Validate() Fields {
 	return fields
 }
 
+// validText проверяет длину строки и соответствие регулярному выражению.
 func validText(value string, pattern *regexp.Regexp) bool {
 	length := utf8.RuneCountInString(value)
 	return length >= 1 && length <= maxTextLength && pattern.MatchString(value)
 }
 
+// validEmail проверяет длину и структуру адреса электронной почты.
 func validEmail(email string) bool {
 	if length := utf8.RuneCountInString(email); length < 1 || length > maxTextLength {
 		return false
@@ -130,6 +136,7 @@ func validEmail(email string) bool {
 		!strings.Contains(name, "..")
 }
 
+// validPassword проверяет длину пароля и обязательные классы символов.
 func validPassword(password string) bool {
 	return utf8.RuneCountInString(password) >= minPasswordLength &&
 		uppercasePattern.MatchString(password) &&
@@ -138,6 +145,7 @@ func validPassword(password string) bool {
 		specialPattern.MatchString(password)
 }
 
+// Search находит услуги по обычной подстроке без исполнения ввода.
 func Search(query string) ([]model.CleaningService, error) {
 	query = strings.TrimSpace(query)
 	if query != "" && !validText(query, searchPattern) {
@@ -158,12 +166,14 @@ func Search(query string) ([]model.CleaningService, error) {
 	return matches, nil
 }
 
+// RequestInput входные данные заявки без возможности указать владельца.
 type RequestInput struct {
 	Service string `json:"service"`
 	Address string `json:"address"`
 	Date    string `json:"date"`
 }
 
+// Validate нормализует ввод и возвращает ошибки отдельных полей.
 func (input *RequestInput) Validate(now time.Time) Fields {
 	input.Service = strings.TrimSpace(input.Service)
 	input.Address = strings.TrimSpace(input.Address)
@@ -183,6 +193,7 @@ func (input *RequestInput) Validate(now time.Time) Fields {
 	return fields
 }
 
+// serviceExists проверяет идентификатор услуги по серверному справочнику.
 func serviceExists(serviceID string) bool {
 	for _, cleaningService := range cleaningServices {
 		if cleaningService.ID == serviceID {
@@ -193,6 +204,7 @@ func serviceExists(serviceID string) bool {
 	return false
 }
 
+// validCleaningDate отклоняет несуществующие и прошедшие даты уборки.
 func validCleaningDate(value string, now time.Time) bool {
 	date, err := time.Parse(dateLayout, value)
 	if err != nil || date.Format(dateLayout) != value {
@@ -202,6 +214,7 @@ func validCleaningDate(value string, now time.Time) bool {
 	return value >= MoscowToday(now)
 }
 
+// MoscowToday возвращает календарную дату по московскому времени.
 func MoscowToday(now time.Time) string {
 	return now.In(moscowTime).Format(dateLayout)
 }

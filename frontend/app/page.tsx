@@ -1,5 +1,5 @@
+// Главная страница с каталогом услуг и описанием оформления заявки.
 import Link from "next/link";
-import { cookies } from "next/headers";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -9,7 +9,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Services } from "@/components/services";
-import { CookieNotice } from "@/components/cookie-notice";
 import { readAPI } from "@/lib/server-api";
 import type { CleaningService } from "@/lib/api";
 
@@ -28,19 +27,20 @@ const bookingSteps = [
   },
 ];
 
+/** Загружает каталог и отображает главную страницу сервиса. */
 export default async function Home() {
   let services: CleaningService[] = [];
   let error = "";
 
   try {
-    const response = await readAPI<{ services: CleaningService[] }>("/services");
+    const response = await readAPI<{ services: CleaningService[] }>(
+      "/services",
+    );
     services = response.services;
   } catch {
     error =
       "Не удалось загрузить услуги. Проверьте запуск сервера и обновите страницу.";
   }
-
-  const showCookieNotice = !(await cookies()).has("cookie_notice");
 
   return (
     <>
@@ -196,7 +196,6 @@ export default async function Home() {
           Оставить заявку <ArrowUpRight size={18} />
         </Link>
       </section>
-      {showCookieNotice && <CookieNotice />}
     </>
   );
 }

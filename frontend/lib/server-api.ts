@@ -1,3 +1,4 @@
+// Обращения серверных компонентов к API с передачей cookie.
 import "server-only";
 
 import { cookies } from "next/headers";
@@ -7,6 +8,7 @@ import { ApiError, type User } from "@/lib/api";
 
 export const backendURL = process.env.BACKEND_URL || "http://127.0.0.1:8080";
 
+/** Получает данные API без кеширования и с cookie текущего запроса. */
 export async function readAPI<T>(path: string): Promise<T> {
   const cookieJar = await cookies();
   let response: Response;
@@ -38,22 +40,31 @@ export async function readAPI<T>(path: string): Promise<T> {
   return body;
 }
 
-export const getSession = cache(async function getSession(): Promise<User | null> {
-  const cookieJar = await cookies();
+/** Состояние сессии отличает гостя от временной недоступности сервиса. */
+interface SessionState {
+  user: User | null;
+  unavailable: boolean;
+}
 
-  if (!cookieJar.has("cleaning.sid")) {
-    return null;
-  }
+/** Читает сессию один раз за рендер, сохраняя сбои API как явное состояние. */
+export const getSession = cache(
+  async function getSession(): Promise<SessionState> {
+    const cookieJar = await cookies();
 
-  try {
-    const response = await readAPI<{ user: User }>("/auth/me");
-
-    return response.user;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      return null;
+    if (!cookieJar.has("cleaning.sid")) {
+      return { user: null, unavailable: false };
     }
 
-    throw error;
-  }
-});
+    try {
+      const response = await readAPI<{ user: User }>("/auth/me");
+
+      return { user: response.user, unavailable: false };
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        return { user: null, unavailable: false };
+      }
+
+      return { user: null, unavailable: true };
+    }
+  },
+);

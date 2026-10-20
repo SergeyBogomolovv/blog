@@ -1,3 +1,4 @@
+// Проверки хеширования паролей и подписи сессий.
 package security_test
 
 import (
@@ -8,6 +9,7 @@ import (
 	"cleanhome/pkg/security"
 )
 
+// TestPasswords проверяет соль, хеширование и отказ для неверных паролей.
 func TestPasswords(t *testing.T) {
 	password := "Aa1!" + strings.Repeat("я", 100)
 	firstHash, err := security.HashPassword(password)
@@ -43,6 +45,7 @@ func TestPasswords(t *testing.T) {
 	}
 }
 
+// TestSignedSession проверяет подпись и отказ для изменённых токенов сессии.
 func TestSignedSession(t *testing.T) {
 	key := bytes.Repeat([]byte{1}, 32)
 	token, err := security.SessionID(key)

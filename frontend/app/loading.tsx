@@ -1,3 +1,4 @@
+// Индикатор загрузки страниц приложения.
 export default function Loading() {
   return (
     <div

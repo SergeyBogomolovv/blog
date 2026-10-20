@@ -1,14 +1,17 @@
+// Общие навигация, основная область и подвал сайта.
 import Link from "next/link";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 
 import { LogoutButton } from "@/components/logout-button";
 import type { User } from "@/lib/api";
 
+/** Параметры компонента ShellProps. */
 interface ShellProps {
   children: React.ReactNode;
   user: User | null;
 }
 
+/** Отображает общую оболочку с навигацией для гостя или пользователя. */
 export function Shell({ children, user }: ShellProps) {
   return (
     <>

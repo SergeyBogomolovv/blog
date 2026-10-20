@@ -1,3 +1,4 @@
+// Профиль, форма заявки и список обращений пользователя.
 "use client";
 
 import Link from "next/link";
@@ -7,12 +8,16 @@ import { ShieldCheck, Sparkles } from "lucide-react";
 import { RequestForm } from "@/components/request-form";
 import { RequestsList } from "@/components/requests-list";
 import {
+  /** Структура данных CleaningRequest. */
   type CleaningRequest,
+  /** Структура данных CleaningService. */
   type CleaningService,
   date,
+  /** Структура данных User. */
   type User,
 } from "@/lib/api";
 
+/** Параметры компонента DashboardProps. */
 interface DashboardProps {
   user: User;
   services: CleaningService[];
@@ -20,13 +25,18 @@ interface DashboardProps {
   selectedService: string;
 }
 
+/** Показывает контактные данные текущего пользователя. */
 function AccountDetails({ user }: { user: User }) {
   return (
     <div className="account-details">
       <Sparkles size={19} />
       <div>
-        <strong>{user.surname} {user.name} {user.patronymic}</strong>
-        <p>{user.phone} · {user.email}</p>
+        <strong>
+          {user.surname} {user.name} {user.patronymic}
+        </strong>
+        <p>
+          {user.phone} · {user.email}
+        </p>
         <Link href="/privacy">
           Согласие от {date(user.consent_at)}, версия {user.consent_version}
         </Link>
@@ -35,6 +45,7 @@ function AccountDetails({ user }: { user: User }) {
   );
 }
 
+/** Объединяет профиль, создание заявки и собственные обращения. */
 export function Dashboard({
   user,
   services,
@@ -43,6 +54,7 @@ export function Dashboard({
 }: DashboardProps) {
   const [requests, setRequests] = useState(initialRequests);
 
+  /** Добавляет подтверждённую сервером заявку в начало списка. */
   function addRequest(request: CleaningRequest) {
     setRequests((current) => [request, ...current]);
   }
@@ -52,7 +64,9 @@ export function Dashboard({
       <div className="dashboard-heading">
         <div>
           <span className="eyebrow">Ваше пространство заботы</span>
-          <h1>Здравствуйте, <em>{user.name}.</em></h1>
+          <h1>
+            Здравствуйте, <em>{user.name}.</em>
+          </h1>
           <p>Здесь начинается порядок — и хранятся все ваши заявки.</p>
         </div>
         <span className="account-badge">
@@ -65,12 +79,20 @@ export function Dashboard({
           selectedService={selectedService}
           onCreated={addRequest}
         />
-        <section className="requests-panel" aria-labelledby="requests-title">
+        <section
+          className="requests-panel"
+          aria-labelledby="requests-title"
+        >
           <div className="requests-heading">
-            <h2 id="requests-title">Мои заявки <span>{requests.length}</span></h2>
+            <h2 id="requests-title">
+              Мои заявки <span>{requests.length}</span>
+            </h2>
             <span>Сначала новые</span>
           </div>
-          <RequestsList requests={requests} services={services} />
+          <RequestsList
+            requests={requests}
+            services={services}
+          />
           <AccountDetails user={user} />
         </section>
       </div>

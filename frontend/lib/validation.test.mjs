@@ -1,12 +1,38 @@
+// Проверки клиентских правил регистрации, входа, поиска и заявок.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  validateLogin,
   validateRegistration,
   validateRequest,
   validEmail,
   validPassword,
   validSearch,
 } from "./validation.ts";
+
+// Проверяет ограничения логина и пароля до отправки формы входа.
+test("вход отклоняет неверный формат и принимает допустимые границы", () => {
+  assert.deepEqual(
+    validateLogin({ login: " Ivan ", password: "Password1!" }),
+    {},
+  );
+  assert.deepEqual(
+    validateLogin({
+      login: "a".repeat(20),
+      password: "Aa1!" + "я".repeat(100),
+    }),
+    {},
+  );
+
+  for (const login of ["", " ", "123", "Иван", "Ivan!", "a".repeat(21)]) {
+    assert.ok(validateLogin({ login, password: "Password1!" }).login);
+  }
+
+  assert.equal(
+    validateLogin({ login: "Ivan", password: "" }).password,
+    "Логин или пароль некорректен",
+  );
+});
 
 const valid = {
   surname: "Иванов",
@@ -95,7 +121,9 @@ test("поиск подстрок без интерпретации кода", (
 });
 
 test("дата уборки и границы заявки проверяются до отправки", () => {
-  const services = [{ id: "deep", name: "Генеральная уборка", description: "" }];
+  const services = [
+    { id: "deep", name: "Генеральная уборка", description: "" },
+  ];
   const today = "2026-10-21";
   const input = { service: "deep", address: "Москва", date: today };
 
@@ -119,7 +147,11 @@ test("дата уборки и границы заявки проверяютс�
   ];
 
   for (const { field, value } of invalidValues) {
-    const errors = validateRequest({ ...input, [field]: value }, services, today);
+    const errors = validateRequest(
+      { ...input, [field]: value },
+      services,
+      today,
+    );
     assert.ok(errors[field], `${field}: ${value}`);
   }
 });

@@ -1,3 +1,4 @@
+// Карточки сохранённых заявок и сообщение для пустого списка.
 import {
   ArrowUpRight,
   CalendarDays,
@@ -8,28 +9,39 @@ import {
 
 import { type CleaningRequest, type CleaningService, date } from "@/lib/api";
 
+/** Параметры компонента RequestsListProps. */
 interface RequestsListProps {
   requests: CleaningRequest[];
   services: CleaningService[];
 }
 
+/** Показывает подсказку пользователю без сохранённых заявок. */
 function EmptyRequests() {
   return (
     <div className="empty-requests">
-      <span><ClipboardList size={34} strokeWidth={1.3} /></span>
+      <span>
+        <ClipboardList
+          size={34}
+          strokeWidth={1.3}
+        />
+      </span>
       <h3>Здесь пока чистый лист</h3>
       <p>
         Запланируйте первую уборку.
         <br />
         Ваша заявка появится здесь сразу после отправки.
       </p>
-      <a href="#service" className="text-link">
+      <a
+        href="#service"
+        className="text-link"
+      >
         Начать с выбора услуги <ArrowUpRight size={16} />
       </a>
     </div>
   );
 }
 
+/** Отображает услугу, адрес и дату одной заявки. */
 function RequestCard({
   request,
   serviceName,
@@ -41,16 +53,25 @@ function RequestCard({
     <article className="request-card">
       <div className="request-top">
         <span>Заявка № {request.id}</span>
-        <span className="saved-label"><Check size={13} /> Сохранена</span>
+        <span className="saved-label">
+          <Check size={13} /> Сохранена
+        </span>
       </div>
       <h3>{serviceName}</h3>
-      <p><MapPin size={16} />{request.address}</p>
-      <p><CalendarDays size={16} />{date(request.cleaning_date)}</p>
+      <p>
+        <MapPin size={16} />
+        {request.address}
+      </p>
+      <p>
+        <CalendarDays size={16} />
+        {date(request.cleaning_date)}
+      </p>
       <div className="request-bottom">Создана {date(request.created_at)}</div>
     </article>
   );
 }
 
+/** Выводит список заявок или пояснение для пустого списка. */
 export function RequestsList({ requests, services }: RequestsListProps) {
   if (requests.length === 0) {
     return <EmptyRequests />;
@@ -61,7 +82,10 @@ export function RequestsList({ requests, services }: RequestsListProps) {
   );
 
   return (
-    <div className="requests-list" aria-live="polite">
+    <div
+      className="requests-list"
+      aria-live="polite"
+    >
       {requests.map((request) => (
         <RequestCard
           key={request.id}

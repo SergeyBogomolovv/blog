@@ -1,3 +1,4 @@
+// Каталог услуг и поиск с проверкой пользовательского запроса.
 "use client";
 
 import Link from "next/link";
@@ -5,6 +6,7 @@ import { type FormEvent, useState } from "react";
 import {
   ArrowUpRight,
   Brush,
+  /** Структура данных LucideIcon. */
   type LucideIcon,
   Search,
   Sparkles,
@@ -15,6 +17,7 @@ import {
 import { api, type CleaningService, errorMessage } from "@/lib/api";
 import { validSearch } from "@/lib/validation";
 
+/** Структура данных ServiceAppearance. */
 interface ServiceAppearance {
   icon: LucideIcon;
   caption: string;
@@ -45,6 +48,7 @@ const defaultAppearance: ServiceAppearance = {
   number: "01",
 };
 
+/** Отображает услугу и ссылку на оформление заявки. */
 function ServiceCard({ service }: { service: CleaningService }) {
   const appearance = serviceAppearances[service.id] || defaultAppearance;
   const Icon = appearance.icon;
@@ -52,25 +56,37 @@ function ServiceCard({ service }: { service: CleaningService }) {
   return (
     <article className={`service-card service-${service.id}`}>
       <div className="card-top">
-        <span className="service-icon"><Icon size={30} strokeWidth={1.4} /></span>
+        <span className="service-icon">
+          <Icon
+            size={30}
+            strokeWidth={1.4}
+          />
+        </span>
         <span className="card-number">/ {appearance.number}</span>
       </div>
       <span className="service-tag">{appearance.caption}</span>
       <h3>{service.name}</h3>
       <p>{service.description}</p>
-      <Link href={`/dashboard?service=${service.id}`} className="card-link">
+      <Link
+        href={`/dashboard?service=${service.id}`}
+        className="card-link"
+      >
         Выбрать уборку
-        <span><ArrowUpRight size={20} /></span>
+        <span>
+          <ArrowUpRight size={20} />
+        </span>
       </Link>
     </article>
   );
 }
 
+/** Параметры компонента ServicesProps. */
 interface ServicesProps {
   initialServices: CleaningService[];
   initialError: string;
 }
 
+/** Управляет каталогом, поиском и сообщениями об отсутствии результатов. */
 export function Services({ initialServices, initialError }: ServicesProps) {
   const [services, setServices] = useState(initialServices);
   const [query, setQuery] = useState("");
@@ -78,6 +94,7 @@ export function Services({ initialServices, initialError }: ServicesProps) {
   const [error, setError] = useState(initialError);
   const [pending, setPending] = useState(false);
 
+  /** Проверяет запрос и обновляет список найденных услуг. */
   async function loadServices(searchQuery: string) {
     const normalizedQuery = searchQuery.trim();
 
@@ -100,7 +117,9 @@ export function Services({ initialServices, initialError }: ServicesProps) {
       }
 
       const suffix = normalizedQuery ? `?${parameters}` : "";
-      const response = await api<{ services: CleaningService[] }>(`/services${suffix}`);
+      const response = await api<{ services: CleaningService[] }>(
+        `/services${suffix}`,
+      );
       setServices(response.services);
       setAppliedQuery(normalizedQuery);
     } catch (error) {
@@ -110,11 +129,13 @@ export function Services({ initialServices, initialError }: ServicesProps) {
     }
   }
 
+  /** Обрабатывает отправку поисковой формы без перезагрузки страницы. */
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void loadServices(query);
   }
 
+  /** Сбрасывает запрос и загружает полный каталог услуг. */
   function resetSearch() {
     setQuery("");
     void loadServices("");
@@ -131,7 +152,12 @@ export function Services({ initialServices, initialError }: ServicesProps) {
         autoComplete="off"
       >
         <Search size={20} />
-        <label className="sr-only" htmlFor="service-search">Поиск услуг</label>
+        <label
+          className="sr-only"
+          htmlFor="service-search"
+        >
+          Поиск услуг
+        </label>
         <input
           id="service-search"
           value={query}
@@ -151,18 +177,33 @@ export function Services({ initialServices, initialError }: ServicesProps) {
             <X size={18} />
           </button>
         )}
-        <button type="submit" className="search-submit" disabled={pending}>
+        <button
+          type="submit"
+          className="search-submit"
+          disabled={pending}
+        >
           {pending ? "Ищем…" : "Найти услугу"}
           <ArrowUpRight size={16} />
         </button>
       </form>
-      <p className="search-hint" id="search-hint">
+      <p
+        className="search-hint"
+        id="search-hint"
+      >
         Например, «ремонта». Буквы, цифры, пробелы и дефисы — до 20 символов.
       </p>
       {error && (
-        <div className="error-box" role="alert" id="search-error">
+        <div
+          className="error-box"
+          role="alert"
+          id="search-error"
+        >
           {error}{" "}
-          <button className="text-link" onClick={resetSearch} disabled={pending}>
+          <button
+            className="text-link"
+            onClick={resetSearch}
+            disabled={pending}
+          >
             Загрузить все услуги
           </button>
         </div>
@@ -172,13 +213,24 @@ export function Services({ initialServices, initialError }: ServicesProps) {
           <Search size={30} />
           <h3>Ничего не нашлось</h3>
           <p>По запросу «{appliedQuery}» услуг нет. Попробуйте другое слово.</p>
-          <button className="button button-outline" onClick={resetSearch}>
+          <button
+            className="button button-outline"
+            onClick={resetSearch}
+          >
             Показать все услуги
           </button>
         </div>
       ) : (
-        <div className="service-grid" aria-live="polite">
-          {services.map((service) => <ServiceCard key={service.id} service={service} />)}
+        <div
+          className="service-grid"
+          aria-live="polite"
+        >
+          {services.map((service) => (
+            <ServiceCard
+              key={service.id}
+              service={service}
+            />
+          ))}
         </div>
       )}
     </>

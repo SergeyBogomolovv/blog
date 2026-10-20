@@ -3,6 +3,7 @@ package model
 
 import "time"
 
+// User данные пользователя после расшифровки на сервере.
 type User struct {
 	ID             int64     `db:"id" json:"id"`
 	Surname        string    `db:"surname" json:"surname"`
@@ -17,6 +18,7 @@ type User struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
+// Request заявка на уборку и сведения о её владельце.
 type Request struct {
 	ID           int64     `db:"id" json:"id"`
 	UserID       int64     `db:"user_id" json:"-"`
@@ -26,6 +28,7 @@ type Request struct {
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
+// CleaningService элемент справочника клининговых услуг.
 type CleaningService struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`

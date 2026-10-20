@@ -1,3 +1,4 @@
+// Уведомление о необходимых cookie и сохранение подтверждения.
 "use client";
 
 import Link from "next/link";
@@ -6,11 +7,13 @@ import { Cookie } from "lucide-react";
 
 import { api, errorMessage } from "@/lib/api";
 
+/** Показывает уведомление до подтверждения пользователем. */
 export function CookieNotice() {
   const [visible, setVisible] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
+  /** Сохраняет подтверждение на сервере и скрывает уведомление. */
   async function acceptNotice() {
     setPending(true);
     setError("");
@@ -30,7 +33,10 @@ export function CookieNotice() {
   }
 
   return (
-    <aside className="cookie-notice" aria-label="Использование cookie">
+    <aside
+      className="cookie-notice"
+      aria-label="Использование cookie"
+    >
       <Cookie size={25} />
       <div>
         <strong>Немного cookie для порядка</strong>
@@ -38,7 +44,14 @@ export function CookieNotice() {
           Сохраняем вход и защищаем ваши формы.{" "}
           <Link href="/privacy">Подробнее</Link>
         </p>
-        {error && <p className="field-error" role="alert">{error}</p>}
+        {error && (
+          <p
+            className="field-error"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
       </div>
       <button
         type="button"

@@ -17,6 +17,7 @@ interface SessionCheck {
   cookies: string[];
 }
 
+/** Проверяет сессию до рендера и сохраняет cookie при сбое API. */
 async function checkSession(request: NextRequest): Promise<SessionCheck> {
   if (!request.cookies.has("cleaning.sid")) {
     return { status: "guest", cookies: [] };
@@ -50,6 +51,7 @@ async function checkSession(request: NextRequest): Promise<SessionCheck> {
   }
 }
 
+/** Определяет переход с учётом доступа и выбранной услуги. */
 function redirectDestination(
   request: NextRequest,
   session: SessionStatus,
@@ -75,6 +77,7 @@ function redirectDestination(
   return destination;
 }
 
+/** Назначает nonce, проверяет сессию и обновляет защитные cookie. */
 export async function proxy(request: NextRequest) {
   const nonce = randomBytes(18).toString("base64");
   const policy = contentSecurityPolicy(
@@ -85,7 +88,8 @@ export async function proxy(request: NextRequest) {
   let csrfToken = request.cookies.get(csrfCookieName)?.value || "";
 
   const isReadRequest = request.method === "GET" || request.method === "HEAD";
-  const needsCSRFToken = isReadRequest && !validCSRFToken(csrfToken, sessionToken);
+  const needsCSRFToken =
+    isReadRequest && !validCSRFToken(csrfToken, sessionToken);
 
   if (needsCSRFToken) {
     csrfToken = createCSRFToken(sessionToken);

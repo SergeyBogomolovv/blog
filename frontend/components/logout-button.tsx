@@ -1,3 +1,4 @@
+// Выход из аккаунта с отзывом сессии на сервере.
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -5,11 +6,13 @@ import { useState } from "react";
 
 import { api, errorMessage } from "@/lib/api";
 
+/** Отображает выход и состояние выполнения запроса. */
 export function LogoutButton() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
+  /** Отзывает сессию и возвращает пользователя к форме входа. */
   async function logout() {
     setPending(true);
     setError("");
@@ -34,7 +37,14 @@ export function LogoutButton() {
       >
         {pending ? "Выходим…" : "Выйти"}
       </button>
-      {error && <p className="field-error" role="alert">{error}</p>}
+      {error && (
+        <p
+          className="field-error"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }

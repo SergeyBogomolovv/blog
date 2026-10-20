@@ -47,6 +47,7 @@ func NewCSRF(key []byte, session string) (string, error) {
 	return value + "." + signature, nil
 }
 
+// csrfMAC вычисляет подпись CSRF с отдельным контекстом назначения.
 func csrfMAC(key []byte, nonce, session string) []byte {
 	mac := hmac.New(sha256.New, key)
 	fmt.Fprintf(mac, "cleanhome:csrf:v1!%d!%s!%s", len(session), session, nonce)

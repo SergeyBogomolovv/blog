@@ -18,6 +18,7 @@ import (
 	"cleanhome/migrations"
 )
 
+// main запускает команду и сообщает об ошибке завершения.
 func main() {
 	if err := run(); err != nil {
 		slog.Error("Не удалось запустить сервер", "error", err)
@@ -25,6 +26,7 @@ func main() {
 	}
 }
 
+// run собирает зависимости и выполняет команду приложения.
 func run() error {
 	if err := applyMigrations(); err != nil {
 		return err
@@ -47,6 +49,7 @@ func run() error {
 	return serve(ctx, application.Server)
 }
 
+// applyMigrations применяет встроенные миграции через административную роль.
 func applyMigrations() error {
 	cfg, err := config.Load(true)
 	if err != nil {
@@ -67,6 +70,7 @@ func applyMigrations() error {
 	return goose.Up(db.DB, ".")
 }
 
+// serve обслуживает HTTP-запросы и корректно завершает работу по сигналу.
 func serve(ctx context.Context, server *http.Server) error {
 	serverErrors := make(chan error, 1)
 	go func() {

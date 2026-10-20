@@ -1,3 +1,4 @@
+// Поля регистрации и входа с подсказками и сообщениями об ошибках.
 "use client";
 
 import { type FocusEvent, useState } from "react";
@@ -5,8 +6,11 @@ import { Eye, EyeOff } from "lucide-react";
 
 import { passwordHint } from "@/lib/validation";
 
-type TextFieldName = "surname" | "name" | "patronymic" | "login" | "phone" | "email";
+/** Структура данных TextFieldName. */
+type TextFieldName =
+  "surname" | "name" | "patronymic" | "login" | "phone" | "email";
 
+/** Структура данных TextFieldDefinition. */
 interface TextFieldDefinition {
   name: TextFieldName;
   label: string;
@@ -62,16 +66,19 @@ export const registrationFields: TextFieldDefinition[] = [
   },
 ];
 
+/** Параметры компонента AuthTextFieldProps. */
 interface AuthTextFieldProps {
   field: TextFieldDefinition;
   disabled: boolean;
   error?: string;
 }
 
+/** Удаляет внешние пробелы после завершения ввода поля. */
 function trimInput(event: FocusEvent<HTMLInputElement>) {
   event.currentTarget.value = event.currentTarget.value.trim();
 }
 
+/** Отображает обязательное поле, подсказку и ошибку проверки. */
 export function AuthTextField({ field, disabled, error }: AuthTextFieldProps) {
   const hintID = `${field.name}-hint`;
   const errorID = `${field.name}-error`;
@@ -94,19 +101,37 @@ export function AuthTextField({ field, disabled, error }: AuthTextFieldProps) {
         aria-invalid={Boolean(error)}
         aria-describedby={description}
       />
-      <span className="field-hint" id={hintID}>{field.hint}</span>
-      {error && <span className="field-error" id={errorID}>{error}</span>}
+      <span
+        className="field-hint"
+        id={hintID}
+      >
+        {field.hint}
+      </span>
+      {error && (
+        <span
+          className="field-error"
+          id={errorID}
+        >
+          {error}
+        </span>
+      )}
     </div>
   );
 }
 
+/** Параметры компонента PasswordFieldProps. */
 interface PasswordFieldProps {
   registration: boolean;
   disabled: boolean;
   error?: string;
 }
 
-export function PasswordField({ registration, disabled, error }: PasswordFieldProps) {
+/** Отображает пароль с возможностью переключить видимость. */
+export function PasswordField({
+  registration,
+  disabled,
+  error,
+}: PasswordFieldProps) {
   const [visible, setVisible] = useState(false);
   const placeholder = registration
     ? "Придумайте надёжный пароль"
@@ -140,8 +165,18 @@ export function PasswordField({ registration, disabled, error }: PasswordFieldPr
           {visible ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
       </div>
-      <span className="field-hint" id="password-hint">{hint}</span>
-      <span className="field-error" id="password-error">{error}</span>
+      <span
+        className="field-hint"
+        id="password-hint"
+      >
+        {hint}
+      </span>
+      <span
+        className="field-error"
+        id="password-error"
+      >
+        {error}
+      </span>
     </div>
   );
 }

@@ -12,17 +12,20 @@ import (
 	"cleanhome/internal/service"
 )
 
+// errorResponse безопасное сообщение и ошибки отдельных полей.
 type errorResponse struct {
 	Error  string         `json:"error"`
 	Fields service.Fields `json:"fields"`
 }
 
+// respond записывает JSON-ответ с заданным HTTP-статусом.
 func respond(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(data)
 }
 
+// fail преобразует ошибки сервиса в безопасные сообщения клиенту.
 func (h *Handler) fail(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	message := "Не удалось выполнить запрос. Попробуйте позже."
@@ -60,6 +63,7 @@ func (h *Handler) fail(w http.ResponseWriter, err error) {
 	})
 }
 
+// decode принимает один JSON-объект и отклоняет неизвестные поля.
 func decode(w http.ResponseWriter, r *http.Request, target any) error {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {

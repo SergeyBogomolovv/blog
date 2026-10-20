@@ -1,3 +1,4 @@
+// Проверки защитных заголовков, CSRF и ограничений запросов.
 package handler
 
 import (
@@ -11,6 +12,7 @@ import (
 	"cleanhome/pkg/security"
 )
 
+// TestSecurity проверяет CSRF-защиту и обязательные заголовки ответов.
 func TestSecurity(t *testing.T) {
 	key := bytes.Repeat([]byte{1}, 32)
 	h := &Handler{
@@ -100,6 +102,7 @@ func TestSecurity(t *testing.T) {
 	}
 }
 
+// TestJSONLimit проверяет ограничения размера и структуры JSON.
 func TestJSONLimit(t *testing.T) {
 	bodies := []string{
 		`{"unknown":1}`,
@@ -120,6 +123,7 @@ func TestJSONLimit(t *testing.T) {
 	}
 }
 
+// TestRateLimit проверяет блокировку после превышения числа попыток.
 func TestRateLimit(t *testing.T) {
 	h := &Handler{attempts: make(map[string]attempt)}
 	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
@@ -138,6 +142,7 @@ func TestRateLimit(t *testing.T) {
 	}
 }
 
+// TestAllMutationBodiesLimited проверяет лимит тела для всех изменяющих маршрутов.
 func TestAllMutationBodiesLimited(t *testing.T) {
 	h := &Handler{}
 	body := strings.NewReader(strings.Repeat("x", 16*1024+1))

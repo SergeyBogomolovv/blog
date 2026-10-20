@@ -19,8 +19,14 @@ test("собранный сайт требует nonce и запрещает н�
   const policy = contentSecurityPolicy("production-nonce");
   const rules = directives(policy);
 
-  assert.deepEqual(rules.get("script-src"), ["'self'", "'nonce-production-nonce'"]);
-  assert.deepEqual(rules.get("style-src"), ["'self'", "'nonce-production-nonce'"]);
+  assert.deepEqual(rules.get("script-src"), [
+    "'self'",
+    "'nonce-production-nonce'",
+  ]);
+  assert.deepEqual(rules.get("style-src"), [
+    "'self'",
+    "'nonce-production-nonce'",
+  ]);
   assert.equal(rules.has("style-src-elem"), false);
   assert.equal(rules.has("style-src-attr"), false);
   assert.doesNotMatch(policy, /'unsafe-inline'|'unsafe-eval'|\*/);
@@ -31,7 +37,10 @@ test("разработка разрешает теги стилей DevTools, с
   const rules = directives(contentSecurityPolicy("development-nonce", true));
 
   assert.deepEqual(rules.get("style-src-elem"), ["'self'", "'unsafe-inline'"]);
-  assert.deepEqual(rules.get("style-src"), ["'self'", "'nonce-development-nonce'"]);
+  assert.deepEqual(rules.get("style-src"), [
+    "'self'",
+    "'nonce-development-nonce'",
+  ]);
   assert.equal(rules.has("style-src-attr"), false);
   assert.deepEqual(rules.get("script-src"), [
     "'self'",

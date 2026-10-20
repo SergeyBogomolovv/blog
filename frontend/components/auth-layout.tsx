@@ -1,11 +1,14 @@
+// Общее оформление страниц регистрации и входа.
 import Link from "next/link";
 import { ArrowLeft, Check, Sparkles } from "lucide-react";
 
+/** Параметры компонента AuthLayoutProps. */
 interface AuthLayoutProps {
   children: React.ReactNode;
   register: boolean;
 }
 
+/** Оформляет страницы авторизации в едином стиле. */
 export function AuthLayout({ children, register }: AuthLayoutProps) {
   const description = register
     ? "Заполните все поля. Для текстовых — до 20 символов, " +

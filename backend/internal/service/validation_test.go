@@ -1,3 +1,4 @@
+// Проверки правил регистрации, поиска и календарных дат.
 package service_test
 
 import (
@@ -8,6 +9,7 @@ import (
 	"cleanhome/internal/service"
 )
 
+// validRegistration создаёт допустимый набор регистрационных данных для тестов.
 func validRegistration() service.Registration {
 	return service.Registration{
 		Surname:    "Иванов",
@@ -21,6 +23,7 @@ func validRegistration() service.Registration {
 	}
 }
 
+// TestRegistration проверяет форматы, обязательность и границы регистрационных полей.
 func TestRegistration(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -172,6 +175,7 @@ func TestRegistration(t *testing.T) {
 	}
 }
 
+// TestRequests проверяет услугу, длину адреса и календарные даты заявки.
 func TestRequests(t *testing.T) {
 	now := time.Date(2026, 10, 20, 22, 0, 0, 0, time.UTC)
 	if today := service.MoscowToday(now); today != "2026-10-21" {
@@ -253,6 +257,7 @@ func TestRequests(t *testing.T) {
 	}
 }
 
+// TestSearch проверяет безопасный поиск и отклонение недопустимых символов.
 func TestSearch(t *testing.T) {
 	tests := []struct {
 		query   string
