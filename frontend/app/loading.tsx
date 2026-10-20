@@ -1,12 +1,10 @@
-// Состояние ожидания потокового серверного рендера маршрута.
-// Loading показывается Next.js при переходе до готовности данных.
 export default function Loading() {
   return (
-    <p
-      className="loading"
+    <div
+      className="container loading-page"
       role="status"
     >
-      Открываем страницу…
-    </p>
+      <span className="loading-dot" /> Загружаем ваше пространство…
+    </div>
   );
 }

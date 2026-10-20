@@ -1,73 +1,68 @@
 -- +goose Up
--- Таблицы блога и права сервисной учётной записи.
+
+-- Пользователи, заявки и сохраняемые в PostgreSQL сессии.
 
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
-    login_index TEXT NOT NULL UNIQUE,
-    login_enc TEXT NOT NULL,
-    email_enc TEXT NOT NULL,
-    name_enc TEXT NOT NULL,
-    bio_enc TEXT NOT NULL,
+    surname TEXT NOT NULL
+        CHECK (char_length(surname) BETWEEN 1 AND 20),
+    name TEXT NOT NULL
+        CHECK (char_length(name) BETWEEN 1 AND 20),
+    patronymic TEXT NOT NULL
+        CHECK (char_length(patronymic) BETWEEN 1 AND 20),
+    login TEXT NOT NULL
+        CHECK (char_length(login) BETWEEN 1 AND 20),
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user'
-        CHECK (role IN ('user', 'admin')),
-    banned BOOLEAN NOT NULL DEFAULT FALSE,
-    token_version INTEGER NOT NULL DEFAULT 0,
+    phone TEXT NOT NULL
+        CHECK (char_length(phone) BETWEEN 1 AND 20),
+    email TEXT NOT NULL
+        CHECK (char_length(email) BETWEEN 1 AND 20),
     consent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    consent_version TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE posts (
+CREATE UNIQUE INDEX users_login_idx
+    ON users (lower(login));
+
+CREATE TABLE requests (
     id BIGSERIAL PRIMARY KEY,
-    author_id BIGINT NOT NULL REFERENCES users (id),
-    title TEXT NOT NULL
-        CHECK (char_length(title) BETWEEN 3 AND 120),
-    body TEXT NOT NULL
-        CHECK (char_length(body) BETWEEN 1 AND 10000),
+    user_id BIGINT NOT NULL
+        REFERENCES users (id),
+    service TEXT NOT NULL
+        CHECK (
+            service IN (
+                'maintenance',
+                'deep',
+                'renovation'
+            )
+        ),
+    address TEXT NOT NULL
+        CHECK (char_length(address) BETWEEN 1 AND 100),
+    cleaning_date DATE NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE comments (
-    id BIGSERIAL PRIMARY KEY,
-    post_id BIGINT NOT NULL REFERENCES posts (id) ON DELETE CASCADE,
-    author_id BIGINT NOT NULL REFERENCES users (id),
-    body TEXT NOT NULL
-        CHECK (char_length(body) BETWEEN 1 AND 2000),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE INDEX requests_owner_idx
+    ON requests (user_id, id DESC);
+
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    user_id BIGINT NOT NULL
+        REFERENCES users (id)
+        ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '30 minutes'
 );
 
-CREATE INDEX posts_author_idx
-    ON posts (author_id, id DESC);
+CREATE INDEX sessions_expiry_idx
+    ON sessions (expires_at);
 
-CREATE INDEX comments_post_idx
-    ON comments (post_id, id);
-
-GRANT SELECT
-    ON users, posts, comments
+GRANT SELECT, INSERT
+    ON users, requests
     TO "user";
 
-GRANT INSERT (
-    login_index,
-    login_enc,
-    email_enc,
-    name_enc,
-    bio_enc,
-    password_hash
-)
-    ON users
-    TO "user";
-
-GRANT UPDATE (
-    name_enc,
-    bio_enc,
-    banned,
-    token_version
-)
-    ON users
-    TO "user";
-
-GRANT INSERT, DELETE
-    ON posts, comments
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON sessions
     TO "user";
 
 GRANT USAGE, SELECT
@@ -75,8 +70,9 @@ GRANT USAGE, SELECT
     TO "user";
 
 -- +goose Down
--- Удаление таблиц при явном откате миграции.
 
-DROP TABLE comments;
-DROP TABLE posts;
+DROP TABLE sessions;
+
+DROP TABLE requests;
+
 DROP TABLE users;

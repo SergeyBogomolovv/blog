@@ -1,131 +1,98 @@
-// Серверная навигация получает текущего пользователя из проверенной cookie.
-import { cookies } from "next/headers";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 
-import { ArrowUpRight, Feather, PenLine, Shield } from "lucide-react";
-
-import { logoutAction } from "@/app/actions";
-import { ActionForm } from "@/components/action-form";
-import { CookieNotice } from "@/components/cookie-notice";
-import { MobileMenu } from "@/components/mobile-menu";
-import { NavLink } from "@/components/nav-link";
+import { LogoutButton } from "@/components/logout-button";
 import type { User } from "@/lib/api";
-import { getSession } from "@/lib/server-api";
 
-// HeaderLinks формирует единый набор ссылок для обычного и мобильного меню.
-function HeaderLinks({ user }: { user: User | null }) {
-  return (
-    <>
-      <nav
-        className="header-nav"
-        aria-label="Главная навигация"
-      >
-        <NavLink href="/">Лента</NavLink>
-        {user && <NavLink href={`/users/${user.id}`}>Мой профиль</NavLink>}
-        {user?.role === "admin" && (
-          <NavLink href="/admin">
-            <Shield size={16} />
-            Модерация
-          </NavLink>
-        )}
-      </nav>
-      <div className="header-actions">
-        {user ? (
-          <>
-            <Link
-              className="write-link header-action"
-              href="/write"
-            >
-              <PenLine size={16} />
-              <span>Написать</span>
-            </Link>
-            <ActionForm
-              action={logoutAction}
-              label="Выйти"
-              variant="ghost"
-              buttonClassName="header-action"
-            />
-          </>
-        ) : (
-          <>
-            <NavLink
-              href="/login"
-              className="header-action"
-            >
-              Войти
-            </NavLink>
-            <Link
-              className="write-link header-action"
-              href="/register"
-            >
-              <span>Присоединиться</span>
-              <ArrowUpRight
-                size={18}
-                aria-hidden="true"
-              />
-            </Link>
-          </>
-        )}
-      </div>
-    </>
-  );
+interface ShellProps {
+  children: React.ReactNode;
+  user: User | null;
 }
 
-// Shell формирует общий каркас; персональные данные не кешируются между пользователями.
-export async function Shell({ children }: { children: ReactNode }) {
-  const [user, jar] = await Promise.all([
-    getSession().catch(() => null),
-    cookies(),
-  ]);
-
+export function Shell({ children, user }: ShellProps) {
   return (
     <>
       <a
         className="skip-link"
-        href="#content"
+        href="#main"
       >
         Перейти к содержимому
       </a>
       <header className="site-header">
-        <div className="header-inner">
+        <div className="container header-inner">
           <Link
             href="/"
             className="brand"
-            aria-label="Между строк — главная"
+            aria-label="Чистый дом — главная"
           >
             <span className="brand-mark">
-              <Feather size={23} />
+              <Sparkles size={23} />
             </span>
             <span>
-              между строк<span className="brand-dot">.</span>
+              Чистый дом
+              <span className="brand-caption">Забота о вашем пространстве</span>
             </span>
           </Link>
-          <div className="header-desktop">
-            <HeaderLinks user={user} />
-          </div>
-          <MobileMenu key={user?.id ?? "guest"}>
-            <HeaderLinks user={user} />
-          </MobileMenu>
+          <nav aria-label="Основная навигация">
+            <Link
+              className="nav-item"
+              href="/#services"
+            >
+              Услуги
+            </Link>
+            <Link
+              className="nav-item"
+              href="/#how-it-works"
+            >
+              Как это работает
+            </Link>
+            {user ? (
+              <>
+                <Link
+                  className="button button-small"
+                  href="/dashboard"
+                >
+                  Личный кабинет <ArrowUpRight size={16} />
+                </Link>
+                <LogoutButton />
+              </>
+            ) : (
+              <>
+                <Link
+                  className="login-link"
+                  href="/login"
+                >
+                  Войти
+                </Link>
+                <Link
+                  className="button button-small header-cta"
+                  href="/register"
+                >
+                  Регистрация <ArrowUpRight size={16} />
+                </Link>
+              </>
+            )}
+          </nav>
         </div>
       </header>
-      <main
-        id="content"
-        className="site-main"
-      >
-        {children}
-      </main>
+      <main id="main">{children}</main>
       <footer className="site-footer">
-        <Link
-          className="footer-brand"
-          href="/"
-        >
-          между строк.
-        </Link>
-        <span>Место для мыслей, которыми хочется поделиться.</span>
-        <Link href="/privacy">Данные и cookie</Link>
+        <div className="container footer-inner">
+          <Link
+            className="brand footer-brand"
+            href="/"
+          >
+            <Sparkles size={24} />
+            Чистый дом
+          </Link>
+          <p>Меньше домашних дел. Больше жизни.</p>
+          <Link href="/privacy">Обработка персональных данных</Link>
+        </div>
+        <div className="container footer-bottom">
+          <span>© 2026 Чистый дом</span>
+          <span>Учебный проект · Богомолов Сергей · ИСП-406</span>
+        </div>
       </footer>
-      {jar.get("cookie_notice")?.value !== "accepted" && <CookieNotice />}
     </>
   );
 }

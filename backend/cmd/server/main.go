@@ -1,4 +1,4 @@
-// Команда server запускает HTTP API и корректно завершает активные запросы.
+// Команда server запускает API и завершает активные запросы при остановке.
 package main
 
 import (
@@ -11,11 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"studyblog/internal/app"
-	"studyblog/internal/config"
+	"github.com/pressly/goose/v3"
+
+	"cleanhome/internal/app"
+	"cleanhome/internal/config"
+	"cleanhome/migrations"
 )
 
-// main запускает сервер и ожидает сигнал завершения.
 func main() {
 	if err := run(); err != nil {
 		slog.Error("Не удалось запустить сервер", "error", err)
@@ -23,36 +25,66 @@ func main() {
 	}
 }
 
-// run управляет жизненным циклом сервера и соединений.
 func run() error {
-	c, err := config.Load(false)
+	if err := applyMigrations(); err != nil {
+		return err
+	}
+
+	cfg, err := config.Load(false)
 	if err != nil {
 		return err
 	}
 
-	a, err := app.New(c)
+	application, err := app.New(cfg)
 	if err != nil {
 		return err
 	}
+	defer application.DB.Close()
 
-	defer a.DB.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	result := make(chan error, 1)
+
+	return serve(ctx, application.Server)
+}
+
+func applyMigrations() error {
+	cfg, err := config.Load(true)
+	if err != nil {
+		return err
+	}
+
+	db, err := app.OpenDB(cfg)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	goose.SetBaseFS(migrations.Files)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+
+	return goose.Up(db.DB, ".")
+}
+
+func serve(ctx context.Context, server *http.Server) error {
+	serverErrors := make(chan error, 1)
 	go func() {
-		slog.Info("Сервер запущен", "address", c.Address)
-		result <- a.Server.ListenAndServe()
+		slog.Info("Сервер запущен", "address", server.Addr)
+		serverErrors <- server.ListenAndServe()
 	}()
+
 	select {
-	case err := <-result:
+	case err := <-serverErrors:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 
 		return err
 	case <-ctx.Done():
-		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return a.Server.Shutdown(shutdown)
+
+		return server.Shutdown(shutdownCtx)
 	}
 }

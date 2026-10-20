@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createCSRFToken, sameCSRFToken, validCSRFToken } from "./csrf.ts";
 
-process.env.JWT_SECRET = "01".repeat(32);
+process.env.SESSION_SECRET = "01".repeat(32);
 const vector =
   "0".repeat(64) +
-  ".2f897b9659eb48931898af16a1c0abbc3e58d2f5710d194a86463ee26e7f463c";
+  ".f50f082c6345034a207b0b7e945bf896843f962412bd6149a6dfcb5fdceaddc8";
 
 test("подпись совместима с эталоном Go", () => {
   assert.equal(validCSRFToken(vector, "session-a"), true);
@@ -41,15 +41,15 @@ test("отсутствующие и поддельные токены откло
 });
 
 test("смена серверного ключа отзывает токен, отсутствие ключа запрещает выдачу", () => {
-  const original = process.env.JWT_SECRET;
+  const original = process.env.SESSION_SECRET;
 
   try {
-    process.env.JWT_SECRET = "02".repeat(32);
+    process.env.SESSION_SECRET = "02".repeat(32);
     assert.equal(validCSRFToken(vector, "session-a"), false);
-    delete process.env.JWT_SECRET;
+    delete process.env.SESSION_SECRET;
     assert.throws(() => createCSRFToken());
     assert.throws(() => validCSRFToken(vector, "session-a"));
   } finally {
-    process.env.JWT_SECRET = original;
+    process.env.SESSION_SECRET = original;
   }
 });

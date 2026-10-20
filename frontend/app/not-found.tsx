@@ -1,18 +1,20 @@
-// Страница для неизвестных адресов приложения.
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 
-// NotFound предлагает вернуться в ленту после ошибочного перехода.
 export default function NotFound() {
   return (
-    <div className="empty-state">
-      <span className="eyebrow">404</span>
-      <h1>Эта строка пока не написана</h1>
-      <p>Кажется, такой страницы здесь нет.</p>
+    <div className="container error-page">
+      <Sparkles size={40} />
+      <span className="eyebrow">404 / Страница не найдена</span>
+      <h1>
+        Здесь пока <em>пусто.</em>
+      </h1>
+      <p>Вернитесь на главную, чтобы выбрать уборку или открыть кабинет.</p>
       <Link
+        className="button"
         href="/"
-        className="write-link"
       >
-        Вернуться к историям
+        На главную
       </Link>
     </div>
   );

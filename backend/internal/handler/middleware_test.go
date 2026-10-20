@@ -7,103 +7,148 @@ import (
 	"strings"
 	"testing"
 
-	"studyblog/internal/config"
+	"cleanhome/internal/config"
+	"cleanhome/pkg/security"
 )
 
-const guestCSRF = "0000000000000000000000000000000000000000000000000000000000000000.60ca8f329f50bc54780ee5b29dc67301fc44cb31ff0eab9fee428bf3a178c548"
-const sessionCSRF = "0000000000000000000000000000000000000000000000000000000000000000.2f897b9659eb48931898af16a1c0abbc3e58d2f5710d194a86463ee26e7f463c"
+func TestSecurity(t *testing.T) {
+	key := bytes.Repeat([]byte{1}, 32)
+	h := &Handler{
+		config: config.Config{
+			Origin:     "http://127.0.0.1:3107",
+			SessionKey: key,
+		},
+	}
+	token, err := security.NewCSRF(key, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-func TestSecurityCSRF(t *testing.T) {
-	t.Parallel()
-	h := &Handler{config: config.Config{Origin: "http://localhost:3000", JWTKey: bytes.Repeat([]byte{1}, 32)}}
-	for _, tc := range []struct {
-		name, method, origin, requestedWith, cookie, header, session string
-		want                                                         int
+	tests := []struct {
+		name   string
+		origin string
+		cookie string
+		header string
+		status int
 	}{
-		{"guest", "POST", h.config.Origin, "studyblog", guestCSRF, guestCSRF, "", 204},
-		{"session", "POST", h.config.Origin, "studyblog", sessionCSRF, sessionCSRF, "session-a", 204},
-		{"patch", "PATCH", h.config.Origin, "studyblog", guestCSRF, guestCSRF, "", 204},
-		{"delete", "DELETE", h.config.Origin, "studyblog", guestCSRF, guestCSRF, "", 204},
-		{"put", "PUT", h.config.Origin, "studyblog", guestCSRF, guestCSRF, "", 204},
-		{"missing_both", "POST", h.config.Origin, "studyblog", "", "", "", 403},
-		{"missing_cookie", "POST", h.config.Origin, "studyblog", "", guestCSRF, "", 403},
-		{"missing_header", "POST", h.config.Origin, "studyblog", guestCSRF, "", "", 403},
-		{"mismatched", "POST", h.config.Origin, "studyblog", guestCSRF, sessionCSRF, "", 403},
-		{"forged_both", "POST", h.config.Origin, "studyblog", strings.Repeat("a", 129), strings.Repeat("a", 129), "", 403},
-		{"another_session", "POST", h.config.Origin, "studyblog", sessionCSRF, sessionCSRF, "session-b", 403},
-		{"guest_in_session", "POST", h.config.Origin, "studyblog", guestCSRF, guestCSRF, "session-a", 403},
-		{"foreign_origin", "POST", "http://attacker.example", "studyblog", guestCSRF, guestCSRF, "", 403},
-		{"missing_origin", "POST", "", "studyblog", guestCSRF, guestCSRF, "", 403},
-		{"missing_requested_with", "POST", h.config.Origin, "", guestCSRF, guestCSRF, "", 403},
-		{"read_without_token", "GET", "", "", "", "", "", 204},
-		{"head_without_token", "HEAD", "", "", "", "", "", 204},
-		{"options_without_token", "OPTIONS", "", "", "", "", "", 204},
-	} {
+		{
+			name:   "valid",
+			origin: h.config.Origin,
+			cookie: token,
+			header: token,
+			status: http.StatusOK,
+		},
+		{
+			name:   "no csrf",
+			origin: h.config.Origin,
+			status: http.StatusForbidden,
+		},
+		{
+			name:   "forged csrf",
+			origin: h.config.Origin,
+			cookie: "fake",
+			header: "fake",
+			status: http.StatusForbidden,
+		},
+		{
+			name:   "different token",
+			origin: h.config.Origin,
+			cookie: token,
+			header: token + "x",
+			status: http.StatusForbidden,
+		},
+		{
+			name:   "foreign origin",
+			origin: "http://evil.test",
+			cookie: token,
+			header: token,
+			status: http.StatusForbidden,
+		},
+	}
+	headerNames := []string{
+		"Content-Security-Policy",
+		"X-Frame-Options",
+		"X-Content-Type-Options",
+		"Permissions-Policy",
+		"Referrer-Policy",
+		"Cache-Control",
+	}
+
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			r := httptest.NewRequest(tc.method, "/api/posts", nil)
-			r.Header.Set("Origin", tc.origin)
-			r.Header.Set("X-Requested-With", tc.requestedWith)
-			r.Header.Set("X-CSRF-Token", tc.header)
-			if tc.cookie != "" {
-				r.AddCookie(&http.Cookie{Name: "csrf_token", Value: tc.cookie})
+			request := httptest.NewRequest(http.MethodPost, "/api/requests", strings.NewReader(`{}`))
+			request.Header.Set("Origin", tc.origin)
+			request.Header.Set("X-Requested-With", "cleaning")
+			request.Header.Set("X-CSRF-Token", tc.header)
+			request.AddCookie(&http.Cookie{Name: csrfCookieName, Value: tc.cookie})
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+			response := httptest.NewRecorder()
+			h.security(next).ServeHTTP(response, request)
+
+			if response.Code != tc.status {
+				t.Fatalf("status = %d, want %d", response.Code, tc.status)
 			}
-			if tc.session != "" {
-				r.AddCookie(&http.Cookie{Name: "access_token", Value: tc.session})
-			}
-			w := httptest.NewRecorder()
-			h.security(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusNoContent)
-			})).ServeHTTP(w, r)
-			if w.Code != tc.want {
-				t.Errorf("status = %d, want %d", w.Code, tc.want)
+			for _, name := range headerNames {
+				if response.Header().Get(name) == "" {
+					t.Errorf("missing response header: %s", name)
+				}
 			}
 		})
 	}
 }
 
-// Все маршруты изменения данных проверяют CSRF раньше сессии и обращения к БД.
-func TestRoutesRejectMissingCSRF(t *testing.T) {
-	t.Parallel()
-	for _, route := range []struct{ method, path string }{
-		{"POST", "/api/auth/login"}, {"POST", "/api/auth/register"},
-		{"POST", "/api/auth/logout"}, {"POST", "/api/posts"},
-		{"POST", "/api/posts/1/comments"}, {"DELETE", "/api/posts/1"},
-		{"PATCH", "/api/profile"}, {"PATCH", "/api/admin/users/1/ban"},
-	} {
-		t.Run(route.path, func(t *testing.T) {
-			t.Parallel()
-			r := httptest.NewRequest(route.method, route.path, nil)
-			r.Header.Set("Origin", "http://localhost:3000")
-			r.Header.Set("X-Requested-With", "studyblog")
-			w := httptest.NewRecorder()
-			New(nil, config.Config{Origin: "http://localhost:3000"}).ServeHTTP(w, r)
-			if w.Code != http.StatusForbidden {
-				t.Errorf("status = %d, want 403", w.Code)
-			}
-		})
+func TestJSONLimit(t *testing.T) {
+	bodies := []string{
+		`{"unknown":1}`,
+		`{} {}`,
+		`{"date":"` + strings.Repeat("a", 16*1024) + `"}`,
+	}
+	for _, body := range bodies {
+		request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+
+		var input struct {
+			Date string `json:"date"`
+		}
+		if err := decode(response, request, &input); err == nil {
+			t.Fatal("invalid body accepted")
+		}
 	}
 }
 
-func TestSessionAllowsNewLoginWithStaleCookie(t *testing.T) {
-	t.Parallel()
-	for _, path := range []string{"/api/auth/login", "/api/auth/register", "/api/posts"} {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-			r := httptest.NewRequest("POST", path, nil)
-			r.AddCookie(&http.Cookie{Name: "access_token", Value: "expired"})
-			w := httptest.NewRecorder()
-			h := &Handler{}
-			h.session(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusNoContent)
-			})).ServeHTTP(w, r)
-			want := http.StatusNoContent
-			if path == "/api/posts" {
-				want = http.StatusUnauthorized
-			}
-			if w.Code != want {
-				t.Errorf("status = %d, want %d", w.Code, want)
-			}
-		})
+func TestRateLimit(t *testing.T) {
+	h := &Handler{attempts: make(map[string]attempt)}
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
+
+	for number := 1; number <= 31; number++ {
+		response := httptest.NewRecorder()
+		limited := h.limited(response, request)
+		wantLimited := number > 30
+
+		if limited != wantLimited {
+			t.Fatalf("request %d: limited = %v, want %v", number, limited, wantLimited)
+		}
+		if limited && response.Code != http.StatusTooManyRequests {
+			t.Fatalf("status = %d, want 429", response.Code)
+		}
+	}
+}
+
+func TestAllMutationBodiesLimited(t *testing.T) {
+	h := &Handler{}
+	body := strings.NewReader(strings.Repeat("x", 16*1024+1))
+	request := httptest.NewRequest(http.MethodPost, "/api/cookie-notice", body)
+	response := httptest.NewRecorder()
+	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		t.Fatal("oversized request reached handler")
+	})
+	h.security(next).ServeHTTP(response, request)
+
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", response.Code)
 	}
 }

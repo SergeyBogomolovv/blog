@@ -1,114 +1,100 @@
-// Обработчики регистрации, входа, выхода и состояния сервера.
 package handler
 
 import (
 	"net/http"
+	"strings"
 
-	"studyblog/internal/model"
-	"studyblog/internal/service"
-	"studyblog/pkg/security"
+	"cleanhome/internal/service"
+	"cleanhome/pkg/security"
 )
 
-// health проверяет доступность базы данных.
-func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	if err := h.service.Health(r.Context()); err != nil {
-		h.fail(w, err)
-		return
-	}
-
-	respond(w, 200, map[string]string{"status": "ok"})
+type loginInput struct {
+	Login    string `json:"login"`
+	Password string `json:"password"`
 }
 
-// me возвращает текущего пользователя или null для гостя.
-func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
-	a := current(r)
-	if a == nil {
-		respond(w, 200, map[string]any{"user": nil})
-		return
-	}
-
-	u, err := h.service.Public(a, true)
-	if err != nil {
-		h.fail(w, err)
-		return
-	}
-
-	respond(w, 200, map[string]any{"user": u})
-}
-
-// authenticate выдаёт access-cookie и публичный результат входа.
-func (h *Handler) authenticate(w http.ResponseWriter, a *model.Account, status int) {
-	token, err := security.Issue(h.config.JWTKey, a.ID, a.TokenVersion)
-	if err != nil {
-		h.fail(w, err)
-		return
-	}
-
-	u, err := h.service.Public(a, true)
-	if err != nil {
-		h.fail(w, err)
-		return
-	}
-
-	h.cookie(w, token, false)
-	respond(w, status, map[string]any{"user": u})
-}
-
-// register принимает данные только с явно установленным согласием.
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	if h.limited(w, r) {
 		return
 	}
 
-	var in service.Registration
-	if err := decode(w, r, &in); err != nil {
+	var input service.Registration
+	if err := decode(w, r, &input); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if err := h.service.Register(r.Context(), input); err != nil {
 		h.fail(w, err)
 		return
 	}
 
-	a, err := h.service.Register(r.Context(), in)
-	if err != nil {
-		h.fail(w, err)
-		return
-	}
-
-	h.authenticate(w, a, 201)
+	respond(w, http.StatusCreated, map[string]bool{"ok": true})
 }
 
-// login проверяет логин и пароль без раскрытия причины отказа.
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if h.limited(w, r) {
 		return
 	}
 
-	var in struct {
-		Login    string `json:"login"`
-		Password string `json:"password"`
-	}
-
-	if err := decode(w, r, &in); err != nil {
+	var input loginInput
+	if err := decode(w, r, &input); err != nil {
 		h.fail(w, err)
 		return
 	}
 
-	a, err := h.service.Login(r.Context(), in.Login, in.Password)
+	user, err := h.service.Login(r.Context(), strings.TrimSpace(input.Login), input.Password)
 	if err != nil {
 		h.fail(w, err)
 		return
 	}
 
-	h.authenticate(w, a, 200)
-}
-
-// logout отзывает все токены пользователя и удаляет cookie.
-func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
-	if a := current(r); a != nil {
-		if err := h.service.Logout(r.Context(), a.ID); err != nil {
-			h.fail(w, err)
-			return
-		}
+	token, err := security.SessionID(h.config.SessionKey)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if err := h.revokeCurrentSession(r); err != nil {
+		h.fail(w, err)
+		return
 	}
 
-	h.cookie(w, "", true)
-	respond(w, 200, map[string]bool{"ok": true})
+	sessionID := security.SessionHash(token)
+	if err := h.service.CreateSession(r.Context(), sessionID, user.ID); err != nil {
+		h.fail(w, err)
+		return
+	}
+
+	setCookie(w, sessionCookieName, token, sessionMaxAge)
+	setCookie(w, csrfCookieName, "", -1)
+	respond(w, http.StatusOK, map[string]any{"user": user})
+}
+
+func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
+	user := h.require(w, r)
+	if user == nil {
+		return
+	}
+
+	respond(w, http.StatusOK, map[string]any{"user": user})
+}
+
+func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	// Подтверждение выхода отправляется после удаления сессии из базы.
+	if err := h.revokeCurrentSession(r); err != nil {
+		h.fail(w, err)
+		return
+	}
+
+	setCookie(w, sessionCookieName, "", -1)
+	setCookie(w, csrfCookieName, "", -1)
+	respond(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) revokeCurrentSession(r *http.Request) error {
+	token := sessionValue(r)
+	if !security.ValidSession(h.config.SessionKey, token) {
+		return nil
+	}
+
+	return h.service.Logout(r.Context(), security.SessionHash(token))
 }

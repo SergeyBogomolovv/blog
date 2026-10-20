@@ -4,28 +4,28 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 export const csrfCookieName = "csrf_token";
 export const csrfCookieOptions = {
   httpOnly: true,
-  sameSite: "strict" as const,
+  sameSite: "lax" as const,
   path: "/",
-  maxAge: 7200,
-  secure: process.env.COOKIE_SECURE === "true",
+  maxAge: 1800,
+  secure: false,
 };
 
-// signature отделяет назначение ключа от JWT и связывает токен с access-cookie.
+// signature отделяет назначения ключа сессии и связывает токен с cookie сессии.
 function signature(nonce: string, session: string): string {
-  const secret = process.env.JWT_SECRET || "";
+  const secret = process.env.SESSION_SECRET || "";
 
   if (!/^[a-fA-F0-9]{64}$/.test(secret)) {
-    throw new Error("JWT_SECRET должен содержать 32 байта в hex");
+    throw new Error("SESSION_SECRET должен содержать 32 байта в hex");
   }
 
   return createHmac("sha256", Buffer.from(secret, "hex"))
     .update(
-      `studyblog:csrf:v1!${Buffer.byteLength(session)}!${session}!${nonce}`,
+      `cleanhome:csrf:v1!${Buffer.byteLength(session)}!${session}!${nonce}`,
     )
     .digest("hex");
 }
 
-// createCSRFToken создаёт 256 случайных бит и подпись, не раскрывая JWT.
+// createCSRFToken создаёт 256 случайных бит и подпись, не раскрывая сессию.
 export function createCSRFToken(session = ""): string {
   const nonce = randomBytes(32).toString("hex");
 

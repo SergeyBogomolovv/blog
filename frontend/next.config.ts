@@ -1,10 +1,8 @@
-// Настройки сборки Tailwind и политик безопасности браузера.
-import type { NextConfig } from "next";
-import { loadEnvConfig, updateInitialEnv } from "@next/env";
 import path from "node:path";
+import { loadEnvConfig, updateInitialEnv } from "@next/env";
+import type { NextConfig } from "next";
 
-// Next.js уже загрузил frontend/.env: принудительно читаем общий корневой .env.
-// Обновляем исходное окружение, чтобы resetEnv в dev-воркерах сохранял настройки.
+// Next.js и Go читают один корневой .env, включая dev-воркеры Next.js.
 const { parsedEnv } = loadEnvConfig(
   path.resolve(process.cwd(), ".."),
   process.env.NODE_ENV === "development",
@@ -13,49 +11,47 @@ const { parsedEnv } = loadEnvConfig(
 );
 updateInitialEnv(parsedEnv || {});
 
+// Для HTML proxy.ts заменяет эту политику вариантом с уникальным nonce.
+const defaultContentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   devIndicators: false,
-  experimental: { serverActions: { bodySizeLimit: "64kb" } },
   turbopack: {
-    rules: { "*.css": { loaders: ["@tailwindcss/turbopack"], as: "*.css" } },
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
-  // Inline разрешён для загрузчика Next.js; eval требуется только в dev-режиме.
   async headers() {
-    const scripts =
-      process.env.NODE_ENV === "development"
-        ? "'self' 'unsafe-inline' 'unsafe-eval'"
-        : "'self' 'unsafe-inline'";
-
     return [
       {
         source: "/:path*",
         headers: [
-          {
-            key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              `script-src ${scripts}`,
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data:",
-              "font-src 'self'",
-              "connect-src 'self' ws://localhost:3000",
-              "object-src 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-              "frame-ancestors 'none'",
-            ].join("; "),
-          },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Referrer-Policy", value: "no-referrer" },
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: defaultContentSecurityPolicy,
           },
         ],
       },
     ];
   },
 };
+
 export default nextConfig;

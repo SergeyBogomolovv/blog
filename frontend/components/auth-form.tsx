@@ -1,147 +1,182 @@
 "use client";
 
-// Формы авторизации отправляются через Server Actions; JWT не доступен компоненту.
 import Link from "next/link";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useState } from "react";
+import { ArrowUpRight, LockKeyhole } from "lucide-react";
 
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import {
+  AuthTextField,
+  loginField,
+  PasswordField,
+  registrationFields,
+} from "@/components/auth-fields";
+import {
+  api,
+  ApiError,
+  errorMessage,
+  type FieldErrors,
+  type RegistrationValues,
+} from "@/lib/api";
+import { validateRegistration } from "@/lib/validation";
 
-import { loginAction, registerAction } from "@/app/actions";
-import { Button } from "@/components/ui/button";
-import { CSRFField } from "@/components/csrf";
+interface AuthFormProps {
+  mode: "login" | "register";
+  registered?: boolean;
+  service?: string;
+}
 
-// AuthForm отображает состояние действия и сохраняет несекретные поля при ошибке.
-export function AuthForm({ register = false }: { register?: boolean }) {
-  const [state, formAction, busy] = useActionState(
-    register ? registerAction : loginAction,
-    {},
-    register ? "/register" : "/login",
-  );
+function registrationInput(data: FormData): RegistrationValues {
+  function text(name: string): string {
+    return String(data.get(name) || "").trim();
+  }
+
+  return {
+    surname: text("surname"),
+    name: text("name"),
+    patronymic: text("patronymic"),
+    login: text("login"),
+    phone: text("phone"),
+    email: text("email"),
+    password: String(data.get("password") || ""),
+    consent: data.has("consent"),
+  };
+}
+
+function destinationAfterSubmit(mode: AuthFormProps["mode"], service: string): string {
+  const parameters = new URLSearchParams();
+  const pathname = mode === "register" ? "/login" : "/dashboard";
+
+  if (mode === "register") {
+    parameters.set("registered", "1");
+  }
+
+  if (service) {
+    parameters.set("service", service);
+  }
+
+  const query = parameters.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+export function AuthForm({ mode, registered = false, service = "" }: AuthFormProps) {
+  const router = useRouter();
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  const isRegistration = mode === "register";
+  const fields = isRegistration ? registrationFields : [loginField];
+  const submitLabel = isRegistration ? "Создать аккаунт" : "Войти в кабинет";
+  const switchPath = isRegistration ? "/login" : "/register";
+  const serviceQuery = service ? `?service=${encodeURIComponent(service)}` : "";
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    const form = event.currentTarget;
+    const input = registrationInput(new FormData(form));
+    const validationErrors = isRegistration ? validateRegistration(input) : {};
+    const invalidFields = Object.keys(validationErrors);
+    setErrors(validationErrors);
+
+    if (invalidFields.length > 0) {
+      const firstField = form.querySelector<HTMLInputElement>(
+        `[name="${invalidFields[0]}"]`,
+      );
+      firstField?.focus();
+
+      return;
+    }
+
+    setPending(true);
+
+    try {
+      const values = isRegistration
+        ? input
+        : { login: input.login, password: input.password };
+
+      await api(`/auth/${mode}`, values);
+      router.push(destinationAfterSubmit(mode, service));
+      router.refresh();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrors(error.fields);
+      }
+
+      setError(errorMessage(error));
+      setPending(false);
+    }
+  }
 
   return (
-    <div className="form-layout">
-      <Link
-        href="/"
-        className="back-link"
-      >
-        <ArrowLeft size={16} />К историям
-      </Link>
-      <div className="form-card">
-        <span className="eyebrow">Между строк</span>
-        <h1>
-          {register ? "Ваша история начинается здесь" : "Рады видеть вас снова"}
-        </h1>
-        <p className="form-intro">
-          {register
-            ? "Создайте аккаунт, чтобы писать и участвовать в обсуждениях."
-            : "Войдите, чтобы продолжить писать свою историю."}
-        </p>
-        <form
-          action={formAction}
-          autoComplete="off"
-        >
-          <CSRFField />
-          {register && (
-            <>
-              <label htmlFor="name">Как к вам обращаться</label>
-              <input
-                id="name"
-                name="name"
-                defaultValue={state.values?.name ?? ""}
-                required
-                minLength={2}
-                maxLength={60}
-                placeholder="Ваше имя"
-                autoComplete="off"
-              />
-              <label htmlFor="email">Электронная почта</label>
-              <input
-                id="email"
-                name="email"
-                defaultValue={state.values?.email ?? ""}
-                type="email"
-                required
-                maxLength={254}
-                placeholder="you@example.com"
-                autoComplete="off"
-              />
-              <span className="field-hint">Почта видна только вам.</span>
-            </>
-          )}
-          <label htmlFor="login">Логин</label>
-          <input
-            id="login"
-            name="login"
-            defaultValue={state.values?.login ?? ""}
-            required
-            pattern="[a-z0-9_]{3,24}"
-            minLength={3}
-            maxLength={24}
-            autoComplete="off"
-            aria-describedby="login-hint"
-            placeholder="your_name"
+    <form
+      method="post"
+      className="auth-form"
+      onSubmit={submit}
+      autoComplete="off"
+    >
+      {registered && (
+        <div className="success-box" role="status">
+          Аккаунт создан. Войдите со своим логином и паролем.
+        </div>
+      )}
+      {error && <div className="error-box" role="alert">{error}</div>}
+      <div className={isRegistration ? "form-grid" : "form-stack"}>
+        {fields.map((field) => (
+          <AuthTextField
+            key={field.name}
+            field={field}
+            disabled={pending}
+            error={errors[field.name]}
           />
-          <span
-            id="login-hint"
-            className="field-hint"
-          >
-            3–24 символа: маленькие латинские буквы, цифры и _.
-          </span>
-          <label htmlFor="password">Пароль</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minLength={10}
-            maxLength={72}
-            autoComplete="off"
-            aria-describedby="password-hint"
-            placeholder="Не меньше 10 символов"
-          />
-          <span
-            id="password-hint"
-            className="field-hint"
-          >
-            Не менее 10 символов.
-          </span>
-          {register && (
-            <label className="checkbox-label">
-              <input
-                name="consent"
-                type="checkbox"
-                required
-              />
-              <span>
-                Согласие на обработку данных согласно{" "}
-                <Link href="/privacy">политике обработки данных</Link>
-              </span>
-            </label>
-          )}
-          {state.error && (
-            <p
-              className="error-box"
-              role="alert"
-            >
-              {state.error}
-            </p>
-          )}
-          <Button
-            type="submit"
-            className="wide-button"
-            disabled={busy}
-          >
-            {busy ? "Подождите…" : register ? "Создать аккаунт" : "Войти"}
-            <ArrowRight size={17} />
-          </Button>
-        </form>
-        <p className="form-switch">
-          {register ? "Уже есть аккаунт?" : "Ещё нет аккаунта?"}{" "}
-          <Link href={register ? "/login" : "/register"}>
-            {register ? "Войти" : "Присоединиться"}
-          </Link>
-        </p>
+        ))}
+        <PasswordField
+          registration={isRegistration}
+          disabled={pending}
+          error={errors.password}
+        />
       </div>
-    </div>
+      {isRegistration && (
+        <div className="consent-field">
+          <label>
+            <input
+              type="checkbox"
+              name="consent"
+              required
+              disabled={pending}
+              aria-describedby="consent-error"
+            />
+            <span>
+              Я даю{" "}
+              <Link href="/privacy" target="_blank" rel="noopener">
+                согласие на обработку персональных данных
+              </Link>
+            </span>
+          </label>
+          {errors.consent && (
+            <p className="field-error" id="consent-error">{errors.consent}</p>
+          )}
+        </div>
+      )}
+      <button type="submit" className="button wide-button" disabled={pending}>
+        {pending ? "Подождите…" : submitLabel}
+        <ArrowUpRight size={18} />
+      </button>
+      <p className="auth-switch">
+        {isRegistration ? "Уже есть аккаунт?" : "Пока нет аккаунта?"}{" "}
+        <Link href={`${switchPath}${serviceQuery}`}>
+          {isRegistration ? "Войти" : "Зарегистрироваться"}
+        </Link>
+      </p>
+      <p className="form-security">
+        <LockKeyhole size={13} />
+        {isRegistration
+          ? "Ваш пароль будет храниться только в виде хеша"
+          : "Ваши заявки доступны только вам"}
+      </p>
+    </form>
   );
 }

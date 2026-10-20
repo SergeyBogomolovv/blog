@@ -1,2 +1,1 @@
-<!-- Знак блога: перо на светлом фоне. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#e7ebdf"/><path d="M17 47l26-28m-22 23 2-16 15-10 10 10-11 15-16 1m9-9h11" fill="none" stroke="#40583c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="19" fill="#234f42"/><path d="M32 12l6 14 14 6-14 6-6 14-6-14-14-6 14-6z" fill="#e1edb5"/><path d="M48 7l2.5 6.5L57 16l-6.5 2.5L48 25l-2.5-6.5L39 16l6.5-2.5z" fill="#fff"/></svg>

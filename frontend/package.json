@@ -1,11 +1,11 @@
 {
-  "name": "frontend",
+  "name": "cleanhome-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1 --port 3107",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1 --port 3107",
     "lint": "eslint",
     "test": "node --experimental-strip-types --test lib/*.test.mjs",
     "format": "prettier --write app components lib \"*.ts\" \"*.mjs\" \"*.json\""

@@ -1,72 +1,53 @@
 "use client";
 
-// Только управление нативным диалогом; решение о показе принимает сервер по cookie.
-import { usePathname } from "next/navigation";
-import { useActionState } from "react";
+import Link from "next/link";
+import { useState } from "react";
+import { Cookie } from "lucide-react";
 
-import { acceptCookiesAction } from "@/app/actions";
-import { Button } from "@/components/ui/button";
-import { CSRFField } from "@/components/csrf";
+import { api, errorMessage } from "@/lib/api";
 
-// openDialog открывает модальное окно после присоединения DOM-элемента.
-function openDialog(node: HTMLDialogElement | null) {
-  if (node && !node.open) {
-    node.showModal();
-  }
-}
-
-// CookieNotice отправляет ознакомление серверным действием без localStorage и эффектов.
 export function CookieNotice() {
-  const [state, action, pending] = useActionState(
-    acceptCookiesAction,
-    {},
-    usePathname(),
-  );
+  const [visible, setVisible] = useState(true);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
+  async function acceptNotice() {
+    setPending(true);
+    setError("");
+
+    try {
+      await api("/cookie-notice", {});
+      setVisible(false);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (!visible) {
+    return null;
+  }
 
   return (
-    <dialog
-      ref={openDialog}
-      className="cookie-dialog"
-      aria-labelledby="cookie-title"
-      onCancel={(event) => event.preventDefault()}
-    >
-      <span className="eyebrow">Небольшая формальность</span>
-      <h2 id="cookie-title">Здесь есть cookie</h2>
-      <p>
-        Мы используем только необходимые cookie, чтобы сохранять ваш вход и
-        отметку об ознакомлении, а также защищать формы от поддельных запросов.
-        Рекламных и аналитических cookie нет.
-      </p>
-      <form
-        action={action}
-        autoComplete="off"
+    <aside className="cookie-notice" aria-label="Использование cookie">
+      <Cookie size={25} />
+      <div>
+        <strong>Немного cookie для порядка</strong>
+        <p>
+          Сохраняем вход и защищаем ваши формы.{" "}
+          <Link href="/privacy">Подробнее</Link>
+        </p>
+        {error && <p className="field-error" role="alert">{error}</p>}
+      </div>
+      <button
+        type="button"
+        className="button button-small"
+        disabled={pending}
+        onClick={acceptNotice}
       >
-        <CSRFField />
-        {state.error && (
-          <p
-            className="error-box"
-            role="alert"
-          >
-            {state.error}
-          </p>
-        )}
-        <button
-          type="submit"
-          name="destination"
-          value="privacy"
-          className="text-link"
-          disabled={pending}
-        >
-          Политика обработки данных →
-        </button>
-        <Button
-          type="submit"
-          className="wide-button"
-          disabled={pending}
-        >
-          {pending ? "Подождите…" : "Понятно, продолжить"}
-        </Button>
-      </form>
-    </dialog>
+        {pending ? "Сохраняем…" : "Понятно"}
+      </button>
+    </aside>
   );
 }

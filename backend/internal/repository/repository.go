@@ -1,250 +1,203 @@
-// Package repository выполняет параметрические запросы PostgreSQL через Squirrel и sqlx.
+// Package repository хранит данные в PostgreSQL через Squirrel и sqlx.
 package repository
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 
-	"studyblog/internal/model"
+	"cleanhome/internal/model"
+	"cleanhome/internal/service"
 )
 
-var builder = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-
 type Repository struct {
-	DB *sqlx.DB
+	db  *sqlx.DB
+	sql sq.StatementBuilderType
 }
 
-// New связывает репозиторий с пулом соединений.
 func New(db *sqlx.DB) *Repository {
-	return &Repository{DB: db}
-}
-
-// account выбирает зашифрованную учётную запись по параметрическому условию.
-func (r *Repository) account(ctx context.Context, where sq.Eq) (*model.Account, error) {
-	q, args, err := builder.
-		Select("*").
-		From("users").
-		Where(where).
-		ToSql()
-	if err != nil {
-		return nil, err
+	return &Repository{
+		db:  db,
+		sql: sq.StatementBuilder.PlaceholderFormat(sq.Dollar),
 	}
-
-	a := &model.Account{}
-	err = r.DB.GetContext(ctx, a, q, args...)
-	return a, err
 }
 
-// Account загружает учётную запись по идентификатору.
-func (r *Repository) Account(ctx context.Context, id int64) (*model.Account, error) {
-	return r.account(ctx, sq.Eq{"id": id})
+func (r *Repository) Ping(ctx context.Context) error {
+	return r.db.PingContext(ctx)
 }
 
-// ByLogin ищет логин по индексу HMAC.
-func (r *Repository) ByLogin(ctx context.Context, index string) (*model.Account, error) {
-	return r.account(ctx, sq.Eq{"login_index": index})
-}
-
-// CreateAccount атомарно создаёт аккаунт; поле role доступно только сервисной роли admin.
-func (r *Repository) CreateAccount(ctx context.Context, a *model.Account, admin bool) error {
-	columns := []string{"login_index", "login_enc", "email_enc", "name_enc", "bio_enc", "password_hash"}
-	values := []any{a.LoginIndex, a.LoginEnc, a.EmailEnc, a.NameEnc, a.BioEnc, a.PasswordHash}
-	if admin {
-		columns = append(columns, "role", "consent_at")
-		values = append(values, "admin", nil)
-	}
-
-	q, args, err := builder.
+func (r *Repository) Register(ctx context.Context, user *model.User) error {
+	query, args, err := r.sql.
 		Insert("users").
-		Columns(columns...).
-		Values(values...).
-		Suffix("RETURNING id").
+		Columns(
+			"surname",
+			"name",
+			"patronymic",
+			"login",
+			"phone",
+			"email",
+			"password_hash",
+			"consent_version",
+		).
+		Values(
+			user.Surname,
+			user.Name,
+			user.Patronymic,
+			user.Login,
+			user.Phone,
+			user.Email,
+			user.PasswordHash,
+			user.ConsentVersion,
+		).
 		ToSql()
 	if err != nil {
 		return err
 	}
 
-	return r.DB.GetContext(ctx, &a.ID, q, args...)
-}
+	_, err = r.db.ExecContext(ctx, query, args...)
 
-// execute подготавливает и выполняет запрос с привязанными параметрами.
-func (r *Repository) execute(ctx context.Context, b sq.Sqlizer) (int64, error) {
-	q, args, err := b.ToSql()
-	if err != nil {
-		return 0, err
-	}
-
-	stmt, err := r.DB.PreparexContext(ctx, q)
-	if err != nil {
-		return 0, err
-	}
-
-	defer stmt.Close()
-	res, err := stmt.ExecContext(ctx, args...)
-	if err != nil {
-		return 0, err
-	}
-
-	return res.RowsAffected()
-}
-
-// Profile обновляет зашифрованные поля публичного профиля.
-func (r *Repository) Profile(ctx context.Context, id int64, name, bio string) error {
-	_, err := r.execute(ctx, builder.
-		Update("users").
-		Set("name_enc", name).
-		Set("bio_enc", bio).
-		Where(sq.Eq{"id": id}),
-	)
-	return err
-}
-
-// Revoke отзывает все выданные токены учётной записи.
-func (r *Repository) Revoke(ctx context.Context, id int64) error {
-	_, err := r.execute(ctx, builder.
-		Update("users").
-		Set("token_version", sq.Expr("token_version + 1")).
-		Where(sq.Eq{"id": id}),
-	)
-	return err
-}
-
-// Ban меняет блокировку обычного пользователя и отзывает его токены.
-func (r *Repository) Ban(ctx context.Context, id int64, banned bool) error {
-	n, err := r.execute(ctx, builder.
-		Update("users").
-		Set("banned", banned).
-		Set("token_version", sq.Expr("token_version + 1")).
-		Where(sq.Eq{"id": id, "role": "user"}),
-	)
-	if err == nil && n == 0 {
-		return sql.ErrNoRows
+	var postgresError *pq.Error
+	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
+		return service.ErrConflict
 	}
 
 	return err
 }
 
-// Users возвращает учётные записи для страницы модерации.
-func (r *Repository) Users(ctx context.Context) ([]model.Account, error) {
-	query, args, err := builder.
+func (r *Repository) UserByLogin(ctx context.Context, login string) (*model.User, error) {
+	query, args, err := r.sql.
 		Select("*").
 		From("users").
-		OrderBy("id DESC").
-		Limit(200).
+		Where("lower(login) = lower(?)", login).
 		ToSql()
 	if err != nil {
 		return nil, err
 	}
 
-	out := []model.Account{}
-	err = r.DB.SelectContext(ctx, &out, query, args...)
-	return out, err
-}
-
-// postSelect собирает общую выборку постов с коррелированным подсчётом комментариев.
-func postSelect() sq.SelectBuilder {
-	commentCount := sq.Select("count(*)").
-		From("comments").
-		Where(sq.Expr("comments.post_id = posts.id"))
-
-	return builder.
-		Select("posts.*").
-		Column(sq.Alias(commentCount, "comment_count")).
-		From("posts")
-}
-
-// Posts возвращает страницу публикаций с необязательным фильтром по автору.
-func (r *Repository) Posts(ctx context.Context, author int64, offset uint64) ([]model.Post, error) {
-	b := postSelect().
-		OrderBy("id DESC").
-		Limit(20).
-		Offset(offset)
-	if author > 0 {
-		b = b.Where(sq.Eq{"author_id": author})
-	}
-
-	q, args, err := b.ToSql()
-	if err != nil {
+	var user model.User
+	if err := r.db.GetContext(ctx, &user, query, args...); err != nil {
 		return nil, err
 	}
 
-	out := []model.Post{}
-	err = r.DB.SelectContext(ctx, &out, q, args...)
-	return out, err
+	return &user, nil
 }
 
-// Post получает публикацию и число комментариев.
-func (r *Repository) Post(ctx context.Context, id int64) (*model.Post, error) {
-	query, args, err := postSelect().
-		Where(sq.Eq{"posts.id": id}).
+func (r *Repository) CreateSession(ctx context.Context, sessionID string, userID int64) error {
+	query, args, err := r.sql.
+		Delete("sessions").
+		Where("expires_at <= now()").
 		ToSql()
 	if err != nil {
-		return nil, err
+		return err
+	}
+	if _, err := r.db.ExecContext(ctx, query, args...); err != nil {
+		return err
 	}
 
-	p := &model.Post{}
-	err = r.DB.GetContext(ctx, p, query, args...)
-	return p, err
-}
-
-// CreatePost сохраняет проверенную публикацию.
-func (r *Repository) CreatePost(ctx context.Context, author int64, title, body string) (int64, error) {
-	q, args, err := builder.
-		Insert("posts").
-		Columns("author_id", "title", "body").
-		Values(author, title, body).
-		Suffix("RETURNING id").
+	// sessionID уже содержит SHA-256, а не значение cookie пользователя.
+	query, args, err = r.sql.
+		Insert("sessions").
+		Columns("id", "user_id").
+		Values(sessionID, userID).
 		ToSql()
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	var id int64
-	err = r.DB.GetContext(ctx, &id, q, args...)
-	return id, err
-}
-
-// DeletePost удаляет публикацию после проверки прав в сервисе.
-func (r *Repository) DeletePost(ctx context.Context, id int64) error {
-	_, err := r.execute(ctx, builder.
-		Delete("posts").
-		Where(sq.Eq{"id": id}),
-	)
+	_, err = r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
-// Comments возвращает комментарии в порядке публикации.
-func (r *Repository) Comments(ctx context.Context, id int64) ([]model.Comment, error) {
-	query, args, err := builder.
+func (r *Repository) Session(ctx context.Context, sessionID string) (*model.User, error) {
+	// Проверка срока и продление атомарны: истёкшая сессия не возобновляется.
+	query, args, err := r.sql.
+		Update("sessions").
+		Set("expires_at", sq.Expr("now() + interval '30 minutes'")).
+		Where(sq.Eq{"id": sessionID}).
+		Where("expires_at > now()").
+		Suffix("RETURNING user_id").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var userID int64
+	if err := r.db.GetContext(ctx, &userID, query, args...); err != nil {
+		return nil, err
+	}
+
+	query, args, err = r.sql.
 		Select("*").
-		From("comments").
-		Where(sq.Eq{"post_id": id}).
-		OrderBy("id").
-		Limit(500).
+		From("users").
+		Where(sq.Eq{"id": userID}).
 		ToSql()
 	if err != nil {
 		return nil, err
 	}
 
-	out := []model.Comment{}
-	err = r.DB.SelectContext(ctx, &out, query, args...)
-	return out, err
+	var user model.User
+	if err := r.db.GetContext(ctx, &user, query, args...); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
 
-// CreateComment добавляет проверенный комментарий к публикации.
-func (r *Repository) CreateComment(ctx context.Context, post, author int64, body string) error {
-	_, err := r.execute(ctx, builder.
-		Insert("comments").
-		Columns("post_id", "author_id", "body").
-		Values(post, author, body),
-	)
+func (r *Repository) DeleteSession(ctx context.Context, sessionID string) error {
+	query, args, err := r.sql.
+		Delete("sessions").
+		Where(sq.Eq{"id": sessionID}).
+		ToSql()
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.ExecContext(ctx, query, args...)
 	return err
 }
 
-// Ping проверяет доступность PostgreSQL.
-func (r *Repository) Ping(ctx context.Context) error {
-	return r.DB.PingContext(ctx)
+func (r *Repository) Requests(ctx context.Context, userID int64) ([]model.Request, error) {
+	query, args, err := r.sql.
+		Select(
+			"id",
+			"user_id",
+			"service",
+			"address",
+			"to_char(cleaning_date, 'YYYY-MM-DD') AS cleaning_date",
+			"created_at",
+		).
+		From("requests").
+		Where(sq.Eq{"user_id": userID}).
+		OrderBy("id DESC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	requests := make([]model.Request, 0)
+	if err := r.db.SelectContext(ctx, &requests, query, args...); err != nil {
+		return nil, err
+	}
+
+	return requests, nil
+}
+
+func (r *Repository) CreateRequest(ctx context.Context, request *model.Request) error {
+	query, args, err := r.sql.
+		Insert("requests").
+		Columns("user_id", "service", "address", "cleaning_date").
+		Values(request.UserID, request.Service, request.Address, request.CleaningDate).
+		Suffix("RETURNING id, created_at").
+		ToSql()
+	if err != nil {
+		return err
+	}
+
+	return r.db.QueryRowxContext(ctx, query, args...).Scan(
+		&request.ID,
+		&request.CreatedAt,
+	)
 }

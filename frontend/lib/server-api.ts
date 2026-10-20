@@ -1,157 +1,59 @@
-// Доступ к Go API только с сервера Next.js; токен не попадает в клиентские props.
 import "server-only";
 
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
 import { cache } from "react";
 
-import type { User } from "@/lib/api";
-import { createCSRFToken, csrfCookieName, csrfCookieOptions } from "@/lib/csrf";
+import { ApiError, type User } from "@/lib/api";
 
-const backendURL = process.env.BACKEND_URL || "http://127.0.0.1:8080";
-const appOrigin = process.env.APP_ORIGIN || "http://localhost:3000";
+export const backendURL = process.env.BACKEND_URL || "http://127.0.0.1:8080";
 
-// ApiError отделяет ожидаемый отказ API от ошибки рендера приложения.
-export class ApiError extends Error {
-  // Сохраняет сообщение для пользователя и HTTP-статус ответа API.
-  constructor(
-    message: string,
-    public status: number,
-  ) {
-    super(message);
-  }
-}
-
-// backendRequest пересылает только cookie авторизации и CSRF, ограничивая ожидание API.
-async function backendRequest(
-  path: string,
-  method: string,
-  data?: unknown,
-  authenticated = true,
-  csrfToken?: string,
-) {
-  const jar = await cookies();
-  const token = authenticated ? jar.get("access_token")?.value : undefined;
-  const csrfCookie = csrfToken ? jar.get(csrfCookieName)?.value : undefined;
-  const forwardedCookies = [
-    ...(token ? [`access_token=${encodeURIComponent(token)}`] : []),
-    ...(csrfCookie
-      ? [`${csrfCookieName}=${encodeURIComponent(csrfCookie)}`]
-      : []),
-  ];
+export async function readAPI<T>(path: string): Promise<T> {
+  const cookieJar = await cookies();
+  let response: Response;
 
   try {
-    return await fetch(`${backendURL}/api${path}`, {
-      method,
+    response = await fetch(`${backendURL}/api${path}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        "Content-Type": "application/json",
-        "X-Requested-With": "studyblog",
-        Origin: appOrigin,
-        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
-        ...(forwardedCookies.length
-          ? { Cookie: forwardedCookies.join("; ") }
-          : {}),
-      },
-      body: data === undefined ? undefined : JSON.stringify(data),
+      headers: { Cookie: cookieJar.toString() },
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     throw new ApiError(
-      "Не удалось связаться с сервером. Проверьте, что бэкенд запущен.",
+      "Сервис временно недоступен. Проверьте запуск Go API и базы данных.",
       503,
     );
   }
-}
-
-// result извлекает публичный ответ, не раскрывая внутренние ошибки сервера.
-async function result<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    const body: { error?: string } = await response.json();
+
     throw new ApiError(
-      body.error || "Не удалось выполнить запрос. Попробуйте позже.",
+      body.error || "Не удалось загрузить данные.",
       response.status,
     );
   }
 
-  return body as T;
+  const body: T = await response.json();
+
+  return body;
 }
 
-// readAPI читает данные без общего кеша между пользователями.
-export async function readAPI<T>(
-  path: string,
-  authenticated = true,
-): Promise<T> {
-  return result<T>(await backendRequest(path, "GET", undefined, authenticated));
-}
+export const getSession = cache(async function getSession(): Promise<User | null> {
+  const cookieJar = await cookies();
 
-// readPublic читает общедоступные данные; отсутствующий ресурс отдаёт страницу 404.
-export async function readPublic<T>(path: string): Promise<T> {
+  if (!cookieJar.has("cleaning.sid")) {
+    return null;
+  }
+
   try {
-    return await readAPI<T>(path, false);
+    const response = await readAPI<{ user: User }>("/auth/me");
+
+    return response.user;
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      notFound();
+    if (error instanceof ApiError && error.status === 401) {
+      return null;
     }
 
     throw error;
   }
-}
-
-// getSession проверяет аккаунт один раз в рамках серверного рендера, а не между запросами.
-export const getSession = cache(
-  async function getSession(): Promise<User | null> {
-    if (!(await cookies()).has("access_token")) {
-      return null;
-    }
-
-    try {
-      return (await readAPI<{ user: User | null }>("/auth/me")).user;
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        return null;
-      }
-
-      throw error;
-    }
-  },
-);
-
-// mutateAPI вызывается только из Server Actions и передаёт Set-Cookie в ответ браузеру.
-export async function mutateAPI<T>(
-  csrfToken: string,
-  path: string,
-  method: string,
-  data?: unknown,
-): Promise<T> {
-  const response = await backendRequest(path, method, data, true, csrfToken);
-  const header = response.headers
-    .getSetCookie()
-    .find((value) => value.startsWith("access_token="));
-
-  if (header) {
-    const attributes = header.split(";").map((value) => value.trim());
-    const value = attributes[0].slice("access_token=".length);
-    const maxAge = Number(
-      attributes
-        .find((value) => value.toLowerCase().startsWith("max-age="))
-        ?.split("=")[1] || "7200",
-    );
-    (await cookies()).set("access_token", value, {
-      httpOnly: true,
-      sameSite: "strict",
-      path: "/",
-      secure: attributes.some((value) => value.toLowerCase() === "secure"),
-      maxAge,
-    });
-    // После смены сессии прежний CSRF-токен больше не подходит.
-    (await cookies()).set(
-      csrfCookieName,
-      createCSRFToken(maxAge > 0 ? value : ""),
-      csrfCookieOptions,
-    );
-  }
-
-  return result<T>(response);
-}
+});

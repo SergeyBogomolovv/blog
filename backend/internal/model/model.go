@@ -1,49 +1,33 @@
-// Package model описывает записи БД и публичные представления API.
+// Package model описывает данные клинингового сервиса.
 package model
 
 import "time"
 
-type Account struct {
-	ID           int64      `db:"id"`
-	LoginIndex   string     `db:"login_index"`
-	LoginEnc     string     `db:"login_enc"`
-	EmailEnc     string     `db:"email_enc"`
-	NameEnc      string     `db:"name_enc"`
-	BioEnc       string     `db:"bio_enc"`
-	PasswordHash string     `db:"password_hash"`
-	Role         string     `db:"role"`
-	Banned       bool       `db:"banned"`
-	TokenVersion int        `db:"token_version"`
-	ConsentAt    *time.Time `db:"consent_at"`
-	CreatedAt    time.Time  `db:"created_at"`
-}
-
 type User struct {
-	ID        int64     `json:"id"`
-	Login     string    `json:"login"`
-	Name      string    `json:"name"`
-	Bio       string    `json:"bio"`
-	Email     string    `json:"email,omitempty"`
-	Role      string    `json:"role"`
-	Banned    bool      `json:"banned"`
-	CreatedAt time.Time `json:"created_at"`
+	ID             int64     `db:"id" json:"id"`
+	Surname        string    `db:"surname" json:"surname"`
+	Name           string    `db:"name" json:"name"`
+	Patronymic     string    `db:"patronymic" json:"patronymic"`
+	Login          string    `db:"login" json:"login"`
+	Phone          string    `db:"phone" json:"phone"`
+	Email          string    `db:"email" json:"email"`
+	PasswordHash   string    `db:"password_hash" json:"-"`
+	ConsentAt      time.Time `db:"consent_at" json:"consent_at"`
+	ConsentVersion string    `db:"consent_version" json:"consent_version"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
-type Post struct {
+type Request struct {
 	ID           int64     `db:"id" json:"id"`
-	AuthorID     int64     `db:"author_id" json:"author_id"`
-	Title        string    `db:"title" json:"title"`
-	Body         string    `db:"body" json:"body"`
+	UserID       int64     `db:"user_id" json:"-"`
+	Service      string    `db:"service" json:"service"`
+	Address      string    `db:"address" json:"address"`
+	CleaningDate string    `db:"cleaning_date" json:"cleaning_date"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	CommentCount int       `db:"comment_count" json:"comment_count"`
-	Author       *User     `json:"author"`
 }
 
-type Comment struct {
-	ID        int64     `db:"id" json:"id"`
-	PostID    int64     `db:"post_id" json:"post_id"`
-	AuthorID  int64     `db:"author_id" json:"author_id"`
-	Body      string    `db:"body" json:"body"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	Author    *User     `json:"author"`
+type CleaningService struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }

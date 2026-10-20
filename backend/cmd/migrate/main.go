@@ -3,14 +3,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/pressly/goose/v3"
 
-	"studyblog/internal/app"
-	"studyblog/internal/config"
-	"studyblog/migrations"
+	"cleanhome/internal/app"
+	"cleanhome/internal/config"
+	"cleanhome/migrations"
 )
 
 // main завершает процесс с ошибкой при неудачной миграции.
@@ -29,22 +30,22 @@ func run() error {
 	}
 
 	if len(os.Args) > 2 || (command != "up" && command != "down" && command != "status") {
-		return fmt.Errorf("использование: migrate [up|down|status]")
+		return errors.New("использование: migrate [up|down|status]")
 	}
 
-	c, err := config.Load(true)
+	cfg, err := config.Load(true)
 	if err != nil {
 		return err
 	}
 
-	db, err := app.OpenDB(c)
+	db, err := app.OpenDB(cfg)
 	if err != nil {
 		return err
 	}
 
 	defer db.Close()
 	goose.SetBaseFS(migrations.Files)
-	if err = goose.SetDialect("postgres"); err != nil {
+	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
 

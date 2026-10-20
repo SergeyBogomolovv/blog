@@ -1,42 +1,40 @@
-// Проверка сессий, защита от CSRF и ограничение частоты входа.
+// Защита запросов и проверка сохраняемых в PostgreSQL сессий.
 package handler
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
 	"time"
 
-	"studyblog/internal/model"
-	"studyblog/internal/service"
-	"studyblog/pkg/security"
+	"cleanhome/internal/model"
+	"cleanhome/internal/service"
+	"cleanhome/pkg/security"
 )
 
-// security проверяет Origin, специальный заголовок и подписанный CSRF-токен.
+const apiContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
+	"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
 func (h *Handler) security(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
-		if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" {
-			if r.Header.Get("Origin") != h.config.Origin || r.Header.Get("X-Requested-With") != "studyblog" {
-				h.fail(w, service.ErrForbidden)
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Content-Security-Policy", apiContentSecurityPolicy)
+
+		if !isReadOnlyMethod(r.Method) {
+			if !h.limitBody(w, r) {
 				return
 			}
-			csrf, err := r.Cookie("csrf_token")
-			session := ""
-			if cookie, err := r.Cookie("access_token"); err == nil {
-				session = cookie.Value
-			}
-			provided := r.Header.Get("X-CSRF-Token")
-			if err != nil || !hmac.Equal([]byte(csrf.Value), []byte(provided)) ||
-				!security.ValidCSRF(h.config.JWTKey, provided, session) {
+			if !h.validCSRFRequest(r) {
 				h.fail(w, service.ErrForbidden)
 				return
 			}
@@ -45,128 +43,163 @@ func (h *Handler) security(next http.Handler) http.Handler {
 		defer func() {
 			if recover() != nil {
 				slog.Error("Непредвиденная ошибка обработчика")
-				respond(w, 500, map[string]string{"error": "Внутренняя ошибка сервера"})
+				respond(w, http.StatusInternalServerError, map[string]string{
+					"error": "Внутренняя ошибка сервера",
+				})
 			}
 		}()
+
 		next.ServeHTTP(w, r)
 	})
 }
 
-// cookie устанавливает HttpOnly-cookie с единственным access-токеном.
-func (h *Handler) cookie(w http.ResponseWriter, value string, remove bool) {
-	age := 7200
-	expires := time.Now().Add(2 * time.Hour)
-	if remove {
-		age = -1
+func isReadOnlyMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *Handler) limitBody(w http.ResponseWriter, r *http.Request) bool {
+	// Ограничение размера действует и для выхода, и для подтверждения cookie.
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			respond(w, http.StatusRequestEntityTooLarge, map[string]string{
+				"error": "Запрос превышает 16 КБ.",
+			})
+		} else {
+			h.fail(w, service.ErrInvalid)
+		}
+
+		return false
+	}
+
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	return true
+}
+
+func (h *Handler) validCSRFRequest(r *http.Request) bool {
+	if r.Header.Get("Origin") != h.config.Origin {
+		return false
+	}
+	if r.Header.Get("X-Requested-With") != "cleaning" {
+		return false
+	}
+
+	cookie, err := r.Cookie(csrfCookieName)
+	if err != nil {
+		return false
+	}
+
+	token := r.Header.Get("X-CSRF-Token")
+	if !hmac.Equal([]byte(cookie.Value), []byte(token)) {
+		return false
+	}
+
+	return security.ValidCSRF(h.config.SessionKey, token, sessionValue(r))
+}
+
+func setCookie(w http.ResponseWriter, name, value string, maxAge int) {
+	expires := time.Now().Add(time.Duration(maxAge) * time.Second)
+	if maxAge < 0 {
 		expires = time.Unix(1, 0)
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
+		Name:     name,
 		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   h.config.Secure,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   age,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   maxAge,
 		Expires:  expires,
 	})
 }
 
-// session на каждом запросе проверяет подпись, срок, блокировку и версию сессии.
+func sessionValue(r *http.Request) string {
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil {
+		return ""
+	}
+
+	return cookie.Value
+}
+
 func (h *Handler) session(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Вход и регистрация доступны с истёкшей cookie; CSRF уже проверен выше.
-		if r.Method == http.MethodPost && (r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/register") {
+		token := sessionValue(r)
+		isAuthRequest := r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/register"
+		if token == "" || isAuthRequest {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !security.ValidSession(h.config.SessionKey, token) {
+			setCookie(w, sessionCookieName, "", -1)
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		cookie, err := r.Cookie("access_token")
-		if errors.Is(err, http.ErrNoCookie) {
+		user, err := h.service.Authorize(r.Context(), security.SessionHash(token))
+		if errors.Is(err, service.ErrUnauthorized) {
+			setCookie(w, sessionCookieName, "", -1)
 			next.ServeHTTP(w, r)
 			return
 		}
-
 		if err != nil {
-			h.fail(w, service.ErrUnauthorized)
-			return
-		}
-
-		c, err := security.Parse(h.config.JWTKey, cookie.Value)
-		if err != nil {
-			h.cookie(w, "", true)
-			h.fail(w, service.ErrUnauthorized)
-			return
-		}
-
-		id, err := strconv.ParseInt(c.Subject, 10, 64)
-		if err != nil {
-			h.cookie(w, "", true)
-			h.fail(w, service.ErrUnauthorized)
-			return
-		}
-
-		a, err := h.service.Authorize(r.Context(), id, c.Version)
-		if err != nil {
-			if errors.Is(err, service.ErrUnauthorized) {
-				h.cookie(w, "", true)
-			}
-
 			h.fail(w, err)
 			return
 		}
 
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), contextKey{}, a)))
+		setCookie(w, sessionCookieName, token, sessionMaxAge)
+		ctx := context.WithValue(r.Context(), contextKey{}, user)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// current получает проверенную middleware учётную запись.
-func current(r *http.Request) *model.Account {
-	a, _ := r.Context().Value(contextKey{}).(*model.Account)
-	return a
-}
-
-// require запрещает действия гостям и проверяет административную роль.
-func (h *Handler) require(w http.ResponseWriter, r *http.Request, admin bool) *model.Account {
-	a := current(r)
-	if a == nil {
+func (h *Handler) require(w http.ResponseWriter, r *http.Request) *model.User {
+	user, _ := r.Context().Value(contextKey{}).(*model.User)
+	if user == nil {
 		h.fail(w, service.ErrUnauthorized)
-		return nil
 	}
 
-	if admin && a.Role != "admin" {
-		h.fail(w, service.ErrForbidden)
-		return nil
-	}
-
-	return a
+	return user
 }
 
-// limited ограничивает попытки входа и регистрации в течение минуты.
+// Next.js и прямые вызовы API разделяют лимит; X-Forwarded-For не используется.
 func (h *Handler) limited(w http.ResponseWriter, r *http.Request) bool {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	now := time.Now()
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	now := time.Now()
-	for key, a := range h.attempts {
-		if now.After(a.until) {
-			delete(h.attempts, key)
+
+	for address, previous := range h.attempts {
+		if !now.Before(previous.until) {
+			delete(h.attempts, address)
 		}
 	}
 
-	a := h.attempts[host]
-	if a.until.IsZero() {
-		a.until = now.Add(time.Minute)
+	current := h.attempts[host]
+	if current.until.IsZero() {
+		current.until = now.Add(authAttemptWindow)
+	}
+	current.count++
+	h.attempts[host] = current
+
+	if current.count <= maxAuthAttempts {
+		return false
 	}
 
-	a.count++
-	h.attempts[host] = a
-	if a.count > 15 {
-		w.Header().Set("Retry-After", "60")
-		respond(w, 429, map[string]string{"error": "Слишком много попыток. Подождите минуту."})
-		return true
-	}
+	retryAfter := int(time.Until(current.until).Seconds()) + 1
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+	respond(w, http.StatusTooManyRequests, map[string]string{
+		"error": "Слишком много попыток. Повторите через 15 минут.",
+	})
 
-	return false
+	return true
 }

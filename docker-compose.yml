@@ -1,5 +1,5 @@
 # PostgreSQL запускается в контейнере, приложение — в отдельных терминалах.
-name: studyblog
+name: cleanhome
 services:
   db:
     image: postgres:17-alpine
@@ -11,7 +11,7 @@ services:
     ports:
       - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
-      - blog_data:/var/lib/postgresql/data
+      - cleaning_data:/var/lib/postgresql/data
       - ./db:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d $$POSTGRES_DB"]
@@ -19,4 +19,4 @@ services:
       timeout: 3s
       retries: 20
 volumes:
-  blog_data:
+  cleaning_data:

@@ -17,12 +17,12 @@ const loaderURL = pathToFileURL(
 
 for (const fromProcess of [false, true]) {
   test(`общий .env загружается после кеша Next.js; ключ из окружения: ${fromProcess}`, (t) => {
-    const root = mkdtempSync(path.join(tmpdir(), "studyblog-env-"));
+    const root = mkdtempSync(path.join(tmpdir(), "cleanhome-env-"));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     mkdirSync(path.join(root, "frontend"));
     writeFileSync(
       path.join(root, ".env"),
-      `JWT_SECRET=${"01".repeat(32)}\nCOOKIE_SECURE=true\nAPP_ORIGIN=https://blog.example.test\n`,
+      `SESSION_SECRET=${"01".repeat(32)}\nCOOKIE_SECURE=true\nAPP_ORIGIN=https://cleanhome.example.test\n`,
     );
     const childEnv = {
       ...process.env,
@@ -31,7 +31,7 @@ for (const fromProcess of [false, true]) {
     };
 
     for (const key of [
-      "JWT_SECRET",
+      "SESSION_SECRET",
       "COOKIE_SECURE",
       "APP_ORIGIN",
       "__NEXT_PROCESSED_ENV",
@@ -40,7 +40,7 @@ for (const fromProcess of [false, true]) {
     }
 
     if (fromProcess) {
-      childEnv.JWT_SECRET = "02".repeat(32);
+      childEnv.SESSION_SECRET = "02".repeat(32);
     }
 
     const script = `
@@ -54,13 +54,13 @@ for (const fromProcess of [false, true]) {
         dir: ${JSON.stringify(path.dirname(configPath))},
       });
       const expectedKey = ${JSON.stringify((fromProcess ? "02" : "01").repeat(32))};
-      assert.equal(process.env.JWT_SECRET, expectedKey);
+      assert.equal(process.env.SESSION_SECRET, expectedKey);
       assert.equal(process.env.COOKIE_SECURE, "true");
-      assert.equal(process.env.APP_ORIGIN, "https://blog.example.test");
+      assert.equal(process.env.APP_ORIGIN, "https://cleanhome.example.test");
       env.resetEnv();
-      assert.equal(process.env.JWT_SECRET, expectedKey);
+      assert.equal(process.env.SESSION_SECRET, expectedKey);
       assert.equal(process.env.COOKIE_SECURE, "true");
-      assert.equal(process.env.APP_ORIGIN, "https://blog.example.test");
+      assert.equal(process.env.APP_ORIGIN, "https://cleanhome.example.test");
     `;
     const result = spawnSync(
       process.execPath,

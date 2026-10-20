@@ -9,11 +9,10 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 
-	"studyblog/internal/config"
-	"studyblog/internal/handler"
-	"studyblog/internal/repository"
-	"studyblog/internal/service"
-	"studyblog/pkg/security"
+	"cleanhome/internal/config"
+	"cleanhome/internal/handler"
+	"cleanhome/internal/repository"
+	"cleanhome/internal/service"
 )
 
 type App struct {
@@ -23,10 +22,11 @@ type App struct {
 }
 
 // OpenDB проверяет соединение и ограничивает размер пула.
-func OpenDB(c config.Config) (*sqlx.DB, error) {
+func OpenDB(cfg config.Config) (*sqlx.DB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	db, err := sqlx.ConnectContext(ctx, "postgres", c.DSN)
+
+	db, err := sqlx.ConnectContext(ctx, "postgres", cfg.DSN)
 	if err != nil {
 		return nil, err
 	}
@@ -34,39 +34,36 @@ func OpenDB(c config.Config) (*sqlx.DB, error) {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(30 * time.Minute)
+
 	return db, nil
 }
 
-// New создаёт приложение с зависимостями для сервера или административной утилиты.
-func New(c config.Config) (*App, error) {
-	db, err := OpenDB(c)
+func New(cfg config.Config) (*App, error) {
+	db, err := OpenDB(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := security.NewVault(c.EncryptionKey, c.IndexKey)
+	repo := repository.New(db)
+	svc, err := service.New(repo)
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
 
-	s, err := service.New(repository.New(db), v)
-	if err != nil {
-		db.Close()
-		return nil, err
+	server := &http.Server{
+		Addr:              cfg.Address,
+		Handler:           handler.New(svc, cfg),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 * 1024,
 	}
 
 	return &App{
 		DB:      db,
-		Service: s,
-		Server: &http.Server{
-			Addr:              c.Address,
-			Handler:           handler.New(s, c),
-			ReadHeaderTimeout: 5 * time.Second,
-			ReadTimeout:       10 * time.Second,
-			WriteTimeout:      15 * time.Second,
-			IdleTimeout:       60 * time.Second,
-			MaxHeaderBytes:    16384,
-		},
+		Service: svc,
+		Server:  server,
 	}, nil
 }
